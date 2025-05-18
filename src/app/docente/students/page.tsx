@@ -7,10 +7,10 @@ import { type Student } from '../../types/student';
 
 // Datos mockeados temporalmente
 const mockStudents: Student[] = [
-  { id: "1", nombre: "María Pérez", nota: 8.5 },
-  { id: "2", nombre: "Juan Gómez", nota: 7.2 },
-  { id: "3", nombre: "Laura Sánchez", nota: 9.1 },
-  { id: "4", nombre: "Carlos Ruiz", nota: 6.8 },
+  { id: "1", nombre: "María Pérez", nota: 8.5, documento: "1001234567", nacimiento: "2008-05-12", acudiente: "Ana Pérez", grado: "7A" },
+  { id: "2", nombre: "Juan Gómez", nota: 7.2, documento: "1002345678", nacimiento: "2008-08-23", acudiente: "Luis Gómez", grado: "7A" },
+  { id: "3", nombre: "Laura Sánchez", nota: 9.1, documento: "1003456789", nacimiento: "2008-11-02", acudiente: "Marta Sánchez", grado: "7A" },
+  { id: "4", nombre: "Carlos Ruiz", nota: 6.8, documento: "1004567890", nacimiento: "2008-02-17", acudiente: "Pedro Ruiz", grado: "7A" },
 ];
 
 export default function EstudiantesPage() {

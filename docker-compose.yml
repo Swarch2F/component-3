@@ -7,8 +7,5 @@ services:
       dockerfile: Dockerfile
     ports:
       - '3000:3000'
-    volumes:
-      - .:/app
     environment:
-      - NODE_ENV=development
-    command: npm run dev
+      - NODE_ENV=production

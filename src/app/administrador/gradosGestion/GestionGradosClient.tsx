@@ -107,7 +107,7 @@ export default function GestionGradosClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full text-center border-2 border-primary-200">
             <h3 className="text-xl font-bold mb-4 text-primary-600">¿Eliminar {showConfirm.tipo === 'grado' ? 'grado' : 'asignatura'}?</h3>
-            <p className="mb-6 text-gray-700">¿Estás seguro de que deseas eliminar {showConfirm.tipo === 'grado' ? 'el grado' : 'la asignatura'} <span className="font-semibold text-primary-500">"{showConfirm.nombre}"</span>?<br/>Esta acción no se puede deshacer.</p>
+            <p className="mb-6 text-gray-700">¿Estás seguro de que deseas eliminar {showConfirm.tipo === 'grado' ? 'el grado' : 'la asignatura'} <span className="font-semibold text-primary-500">&quot;{showConfirm.nombre}&quot;</span>?<br/>Esta acción no se puede deshacer.</p>
             <div className="flex justify-center gap-4">
               <button className="btn-danger px-4 py-2" onClick={confirmarEliminar}>Eliminar</button>
               <button className="btn-secondary px-4 py-2" onClick={cancelarEliminar}>Cancelar</button>
