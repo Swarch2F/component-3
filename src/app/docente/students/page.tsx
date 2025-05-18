@@ -35,20 +35,18 @@ export default function EstudiantesPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#e6f0fa] py-8">
+    <div className="min-h-screen bg-[var(--color-bg)] py-8">
       <div className="max-w-5xl mx-auto">
-        <div className="bg-[#2d7ca7] text-white rounded-t-lg px-6 py-4 shadow text-center font-bold text-xl tracking-wide">
+        <div className="card-modern text-center font-bold text-2xl tracking-wide mb-6 title-modern">
           REPORTES ACADÉMICOS
         </div>
-        <div className="bg-[#f7fafc] border-x border-b border-blue-300 rounded-b-lg px-6 py-6 shadow space-y-6">
+        <div className="card-modern space-y-6">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800 mb-1">Gestión de Estudiantes</h1>
-              <p className="text-sm text-gray-600">Planilla de calificaciones - Séptimo Lenguaje</p>
+              <h1 className="text-3xl font-extrabold mb-1 title-modern">Gestión de Estudiantes</h1>
+              <p className="subtitle-modern text-base">Planilla de calificaciones - Séptimo Lenguaje</p>
             </div>
-            <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow">
-              Añadir Estudiante
-            </button>
+            <button className="btn-primary px-5 py-2 text-base">Añadir Estudiante</button>
           </div>
           <DataContainer
             loading={loading}
