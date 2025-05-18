@@ -10,9 +10,9 @@ export default function Administrador() {
         <div className="card-modern flex flex-col items-center space-y-6">
           <p className="subtitle-modern mb-4 text-lg">Gestiona grados, asignaturas y profesores desde aquí.</p>
           <div className="flex flex-col gap-4 w-full max-w-xs">
-            <Link href="/administrador/grados" className="btn-primary px-6 py-3 text-lg">Gestionar Grados</Link>
-            <Link href="/administrador/asignaturas" className="btn-primary px-6 py-3 text-lg">Gestionar Asignaturas</Link>
-            <Link href="/administrador/profesores" className="btn-primary px-6 py-3 text-lg">Gestionar Profesores</Link>
+            <Link href="/administrador/gradosGestion" className="btn-primary px-6 py-3 text-lg">Gestionar Grados</Link>
+            <Link href="/administrador/asignaturasProfesores" className="btn-primary px-6 py-3 text-lg">Gestionar Asignaturas y Profesores</Link>
+            <Link href="/administrador/estudiantesGestion" className="btn-primary px-6 py-3 text-lg">Gestionar Estudiantes</Link>
           </div>
         </div>
       </div>

@@ -2,8 +2,9 @@
 export type Student = {
   id: string;
   nombre: string;
-  nota: number;
-  // Agregar más campos según necesidad
-  // email?: string;
-  // asignaturas?: string[];
+  documento: string;
+  nacimiento: string;
+  acudiente: string;
+  grado: string;
+  nota?: number; // nota es opcional para compatibilidad
 };
