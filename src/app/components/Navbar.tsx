@@ -31,7 +31,7 @@ export default function Navbar() {
         ) : (
           <>
             <Link href="/administrador" className="navbar-link">Administrador</Link>
-            <Link href="/docente/students" className="navbar-link">Profesor</Link>
+            <Link href="/docente" className="navbar-link">Profesor</Link>
           </>
         )}
       </div>
