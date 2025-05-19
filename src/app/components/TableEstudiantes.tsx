@@ -95,7 +95,7 @@ export default function TableEstudiantes({ data }: Props) {
                   value={s.nota ?? ""}
                   onChange={(e) => {
                     let value = e.target.value;
-                    // Limitar el valor entre 0 y 5
+                    //La nota tienen que estar en el rango de 0 a 5
                     if (value !== "") {
                       let num = Number(value);
                       if (num < 0) value = "0";
