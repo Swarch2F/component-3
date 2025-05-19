@@ -56,9 +56,30 @@ export default function GestionAsignaturasProfesores() {
     fetchData();
   }, []);
 
+  // Validaciones
+  const validarNombreProfesor = (nombre: string) => nombre.trim().length > 0 && nombre.trim().length <= 30;
+  const validarDocumento = (doc: string) => /^[0-9A-Za-z]{1,15}$/.test(doc);
+  const validarNombreAsignatura = (nombre: string) => {
+    const nombreTrim = nombre.trim();
+    if (nombreTrim.length === 0 || nombreTrim.length > 20) return false;
+    // No permitir nombres repetidos (case insensitive)
+    return !asignaturas.some(a => a.nombre.trim().toLowerCase() === nombreTrim.toLowerCase());
+  };
+
   // Crear profesor
   const agregarProfesor = async () => {
-    if (!nuevoProfesor.nombre.trim() || !nuevoProfesor.documento.trim() || !nuevoProfesor.asignaturaId) return;
+    if (!validarNombreProfesor(nuevoProfesor.nombre)) {
+      alert("El nombre del profesor es obligatorio y debe tener máximo 30 caracteres.");
+      return;
+    }
+    if (!validarDocumento(nuevoProfesor.documento)) {
+      alert("El número de documento debe tener máximo 15 caracteres, sin espacios ni puntos.");
+      return;
+    }
+    if (!nuevoProfesor.asignaturaId) {
+      alert("Debe seleccionar una asignatura.");
+      return;
+    }
     const res = (await crearProfesor(nuevoProfesor.nombre, nuevoProfesor.documento, "")) as { crearProfesor: Profesor };
     await import("../../api/asignaturasApi").then(api =>
       api.asignarProfesorAAsignatura(res.crearProfesor.id, nuevoProfesor.asignaturaId)
@@ -97,7 +118,10 @@ export default function GestionAsignaturasProfesores() {
 
   // Crear asignatura
   const agregarAsignatura = async () => {
-    if (!nuevaAsignatura.trim()) return;
+    if (!validarNombreAsignatura(nuevaAsignatura)) {
+      alert("El nombre de la asignatura es obligatorio, único y debe tener máximo 20 caracteres.");
+      return;
+    }
     await crearAsignatura(nuevaAsignatura);
     const asigRes = (await getAsignaturas()) as GetAsignaturasResponse;
     setAsignaturas(asigRes.asignaturas);
@@ -240,6 +264,10 @@ export default function GestionAsignaturasProfesores() {
                         <button
                           className="btn-primary px-2 py-1 text-xs mr-2"
                           onClick={async () => {
+                            if (!validarNombreAsignatura(nuevoNombreAsignatura) || nuevoNombreAsignatura.trim().toLowerCase() === asignaturas.find(a => a.id === editandoAsignaturaId)?.nombre.trim().toLowerCase()) {
+                              alert("El nombre de la asignatura es obligatorio, único y debe tener máximo 20 caracteres.");
+                              return;
+                            }
                             await actualizarAsignatura(asig.id, nuevoNombreAsignatura);
                             const asigRes = (await getAsignaturas()) as GetAsignaturasResponse;
                             setAsignaturas(asigRes.asignaturas);
