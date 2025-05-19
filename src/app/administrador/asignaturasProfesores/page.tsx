@@ -1,93 +1,140 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+  getProfesores,
+  crearProfesor,
+  actualizarProfesor,
+  eliminarProfesor as eliminarProfesorApi,
+} from "../../api/profesoresApi";
+import {
+  getAsignaturas,
+  crearAsignatura,
+  actualizarAsignatura,
+  eliminarAsignatura as eliminarAsignaturaApi,
+} from "../../api/asignaturasApi";
 
 interface Asignatura {
-  id: number;
+  id: string;
   nombre: string;
+  profesorIds?: string[];
 }
 interface Profesor {
-  id: number;
+  id: string;
   nombre: string;
   documento: string;
-  asignatura: Asignatura;
+  area?: string;
+  asignatura?: Asignatura;
+  asignaturaId?: string;
 }
 
-const asignaturasIniciales: Asignatura[] = [
-  { id: 1, nombre: "Matemáticas" },
-  { id: 2, nombre: "Inglés" },
-  { id: 3, nombre: "Ciencias" },
-  { id: 4, nombre: "Historia" },
-  { id: 5, nombre: "Arte" },
-];
-const profesoresIniciales: Profesor[] = [
-  { id: 1, nombre: "Juan López", documento: "12345678", asignatura: asignaturasIniciales[0] },
-  { id: 2, nombre: "Ana Smith", documento: "87654321", asignatura: asignaturasIniciales[1] },
-  { id: 3, nombre: "Carlos Torres", documento: "11223344", asignatura: asignaturasIniciales[2] },
-];
+// Tipos de respuesta para las funciones API
+interface GetProfesoresResponse {
+  profesores: Profesor[];
+}
+interface GetAsignaturasResponse {
+  asignaturas: Asignatura[];
+}
 
 export default function GestionAsignaturasProfesores() {
-  const [profesores, setProfesores] = useState<Profesor[]>(profesoresIniciales);
-  const [asignaturas, setAsignaturas] = useState<Asignatura[]>(asignaturasIniciales);
+  const [profesores, setProfesores] = useState<Profesor[]>([]);
+  const [asignaturas, setAsignaturas] = useState<Asignatura[]>([]);
   const [nuevoProfesor, setNuevoProfesor] = useState({ nombre: "", documento: "", asignaturaId: "" });
-  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [editando, setEditando] = useState<{ nombre: string; documento: string; asignaturaId: string }>({ nombre: "", documento: "", asignaturaId: "" });
-  const [showConfirm, setShowConfirm] = useState<{ tipo: 'profesor' | 'asignatura', id: number, nombre: string } | null>(null);
+  const [showConfirm, setShowConfirm] = useState<{ tipo: 'profesor' | 'asignatura', id: string, nombre: string, asignaturaId?: string } | null>(null);
+  const [nuevaAsignatura, setNuevaAsignatura] = useState("");
+  const [editandoAsignaturaId, setEditandoAsignaturaId] = useState<string | null>(null);
+  const [nuevoNombreAsignatura, setNuevoNombreAsignatura] = useState<string>("");
+
+  useEffect(() => {
+    async function fetchData() {
+      const asigRes = (await getAsignaturas()) as GetAsignaturasResponse;
+      setAsignaturas(asigRes.asignaturas);
+      const profRes = (await getProfesores()) as GetProfesoresResponse;
+      setProfesores(profRes.profesores);
+    }
+    fetchData();
+  }, []);
 
   // Crear profesor
-  const agregarProfesor = () => {
+  const agregarProfesor = async () => {
     if (!nuevoProfesor.nombre.trim() || !nuevoProfesor.documento.trim() || !nuevoProfesor.asignaturaId) return;
-    const asignatura = asignaturas.find(a => a.id === Number(nuevoProfesor.asignaturaId));
-    if (!asignatura) return;
-    setProfesores([
-      ...profesores,
-      { id: Date.now(), nombre: nuevoProfesor.nombre, documento: nuevoProfesor.documento, asignatura }
+    const res = (await crearProfesor(nuevoProfesor.nombre, nuevoProfesor.documento, "")) as { crearProfesor: Profesor };
+    await import("../../api/asignaturasApi").then(api =>
+      api.asignarProfesorAAsignatura(res.crearProfesor.id, nuevoProfesor.asignaturaId)
+    );
+    // Refrescar tanto profesores como asignaturas para que la relación se vea reflejada de inmediato
+    const [profRes, asigRes] = await Promise.all([
+      getProfesores(),
+      getAsignaturas()
     ]);
+    setProfesores((profRes as GetProfesoresResponse).profesores);
+    setAsignaturas((asigRes as GetAsignaturasResponse).asignaturas);
     setNuevoProfesor({ nombre: "", documento: "", asignaturaId: "" });
   };
 
   // Editar profesor
   const iniciarEdicion = (prof: Profesor) => {
     setEditandoId(prof.id);
-    setEditando({ nombre: prof.nombre, documento: prof.documento, asignaturaId: String(prof.asignatura.id) });
+    setEditando({ nombre: prof.nombre, documento: prof.documento, asignaturaId: prof.asignatura?.id || "" });
   };
-  const guardarEdicion = (id: number) => {
-    const asignatura = asignaturas.find(a => a.id === Number(editando.asignaturaId));
-    if (!asignatura) return;
-    setProfesores(profesores.map(p => p.id === id ? { ...p, nombre: editando.nombre, documento: editando.documento, asignatura } : p));
+  const guardarEdicion = async (id: string) => {
+    await actualizarProfesor(id, editando.nombre);
+    const profRes = (await getProfesores()) as GetProfesoresResponse;
+    setProfesores(profRes.profesores);
     setEditandoId(null);
     setEditando({ nombre: "", documento: "", asignaturaId: "" });
   };
 
   // Eliminar profesor
-  const eliminarProfesor = (id: number) => {
+  const eliminarProfesor = (id: string) => {
     const prof = profesores.find(p => p.id === id);
     if (!prof) return;
-    setShowConfirm({ tipo: 'profesor', id, nombre: prof.nombre });
+    // Buscar la asignatura donde está asignado el profesor
+    const asignatura = asignaturas.find(a => a.profesorIds && a.profesorIds.includes(id));
+    setShowConfirm({ tipo: 'profesor', id, nombre: prof.nombre, asignaturaId: asignatura?.id });
   };
 
   // Crear asignatura
-  const [nuevaAsignatura, setNuevaAsignatura] = useState("");
-  const agregarAsignatura = () => {
+  const agregarAsignatura = async () => {
     if (!nuevaAsignatura.trim()) return;
-    setAsignaturas([...asignaturas, { id: Date.now(), nombre: nuevaAsignatura }]);
+    await crearAsignatura(nuevaAsignatura);
+    const asigRes = (await getAsignaturas()) as GetAsignaturasResponse;
+    setAsignaturas(asigRes.asignaturas);
     setNuevaAsignatura("");
   };
+
   // Eliminar asignatura
-  const eliminarAsignatura = (id: number) => {
+  const eliminarAsignatura = (id: string) => {
     const asig = asignaturas.find(a => a.id === id);
     if (!asig) return;
     setShowConfirm({ tipo: 'asignatura', id, nombre: asig.nombre });
   };
-  const confirmarEliminar = () => {
+
+  const confirmarEliminar = async () => {
     if (!showConfirm) return;
     if (showConfirm.tipo === 'profesor') {
-      setProfesores(profesores.filter(p => p.id !== showConfirm.id));
+      // Desasignar de la asignatura si corresponde
+      if (showConfirm.asignaturaId) {
+        await import("../../api/asignaturasApi").then(api =>
+          api.desasignarProfesorDeAsignatura(showConfirm.id, showConfirm.asignaturaId!)
+        );
+      }
+      await eliminarProfesorApi(showConfirm.id);
+      const profRes = (await getProfesores()) as GetProfesoresResponse;
+      setProfesores(profRes.profesores);
+      const asigRes = (await getAsignaturas()) as GetAsignaturasResponse;
+      setAsignaturas(asigRes.asignaturas);
     } else if (showConfirm.tipo === 'asignatura') {
-      setAsignaturas(asignaturas.filter(a => a.id !== showConfirm.id));
-      setProfesores(profesores.filter(p => p.asignatura.id !== showConfirm.id));
+      await eliminarAsignaturaApi(showConfirm.id);
+      const asigRes = (await getAsignaturas()) as GetAsignaturasResponse;
+      setAsignaturas(asigRes.asignaturas);
+      const profRes = (await getProfesores()) as GetProfesoresResponse;
+      setProfesores(profRes.profesores);
     }
     setShowConfirm(null);
   };
+
   const cancelarEliminar = () => setShowConfirm(null);
 
   return (
@@ -133,21 +180,14 @@ export default function GestionAsignaturasProfesores() {
                     ) : prof.nombre}
                   </td>
                   <td className="px-2 py-1 border">
-                    {editandoId === prof.id ? (
-                      <input value={editando.documento} onChange={e => setEditando({ ...editando, documento: e.target.value })} className="input-modern w-full" />
-                    ) : prof.documento}
+                    {prof.documento}
                   </td>
                   <td className="px-2 py-1 border">
-                    {editandoId === prof.id ? (
-                      <select value={editando.asignaturaId} onChange={e => setEditando({ ...editando, asignaturaId: e.target.value })} className="input-modern w-full">
-                        <option value="">Selecciona</option>
-                        {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-                      </select>
-                    ) : prof.asignatura.nombre}
+                    {asignaturas.find(a => a.profesorIds && a.profesorIds.includes(prof.id))?.nombre || "Sin asignar"}
                   </td>
                   <td className="px-2 py-1 border text-center">
                     {editandoId === prof.id ? (
-                      <button className="btn-primary px-2 py-1 text-xs mr-2" onClick={() => guardarEdicion(prof.id)}>Guardar</button>
+                      <button className="btn-primary px-2 py-1 text-xs mr-2" onClick={() => guardarEdicion(editandoId)}>Guardar</button>
                     ) : (
                       <button className="btn-secondary px-2 py-1 text-xs mr-2" onClick={() => iniciarEdicion(prof)}>Editar</button>
                     )}
@@ -173,21 +213,60 @@ export default function GestionAsignaturasProfesores() {
         <table className="min-w-full border text-sm mb-4">
           <thead>
             <tr>
-              <th className="px-2 py-1 border">ID</th>
               <th className="px-2 py-1 border">Nombre</th>
               <th className="px-2 py-1 border">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {asignaturas.length === 0 ? (
-              <tr><td colSpan={3} className="text-center text-gray-400 py-2">No hay asignaturas registradas.</td></tr>
+              <tr><td colSpan={2} className="text-center text-gray-400 py-2">No hay asignaturas registradas.</td></tr>
             ) : (
               asignaturas.map((asig) => (
                 <tr key={asig.id}>
-                  <td className="px-2 py-1 border text-center">{asig.id}</td>
-                  <td className="px-2 py-1 border">{asig.nombre}</td>
+                  <td className="px-2 py-1 border">
+                    {editandoAsignaturaId === asig.id ? (
+                      <input
+                        value={nuevoNombreAsignatura}
+                        onChange={e => setNuevoNombreAsignatura(e.target.value)}
+                        className="input-modern w-full"
+                      />
+                    ) : (
+                      asig.nombre
+                    )}
+                  </td>
                   <td className="px-2 py-1 border text-center">
-                    <button className="btn-danger px-2 py-1 text-xs" onClick={() => eliminarAsignatura(asig.id)}>Eliminar</button>
+                    {editandoAsignaturaId === asig.id ? (
+                      <>
+                        <button
+                          className="btn-primary px-2 py-1 text-xs mr-2"
+                          onClick={async () => {
+                            await actualizarAsignatura(asig.id, nuevoNombreAsignatura);
+                            const asigRes = (await getAsignaturas()) as GetAsignaturasResponse;
+                            setAsignaturas(asigRes.asignaturas);
+                            setEditandoAsignaturaId(null);
+                            setNuevoNombreAsignatura("");
+                          }}
+                        >Guardar</button>
+                        <button
+                          className="btn-secondary px-2 py-1 text-xs"
+                          onClick={() => {
+                            setEditandoAsignaturaId(null);
+                            setNuevoNombreAsignatura("");
+                          }}
+                        >Cancelar</button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="btn-secondary px-2 py-1 text-xs mr-2"
+                          onClick={() => {
+                            setEditandoAsignaturaId(asig.id);
+                            setNuevoNombreAsignatura(asig.nombre);
+                          }}
+                        >Editar</button>
+                        <button className="btn-danger px-2 py-1 text-xs" onClick={() => eliminarAsignatura(asig.id)}>Eliminar</button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))
