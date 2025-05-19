@@ -56,7 +56,7 @@ export default function TableEstudiantes({
           </tr>
         </thead>
         <tbody>
-          {data.map((estudiante) => (
+          {data.map((estudiante: Student) => (
             <tr key={estudiante.id} className="hover:bg-[var(--color-gray)] transition">
               <td className="px-6 py-4 whitespace-nowrap text-base font-medium">{estudiante.nombre}</td>
               <td className="px-6 py-4 whitespace-nowrap text-base">
@@ -65,7 +65,7 @@ export default function TableEstudiantes({
                   step="0.1"
                   min={0}
                   max={5}
-                  value={notasEditadas[estudiante.id] ?? estudiante.nota.toFixed(1)}
+                  value={notasEditadas[estudiante.id] ?? ((estudiante.nota ?? 0).toFixed(1))}
                   onChange={e => handleNotaChange(estudiante.id, e.target.value)}
                   className="border-2 border-[var(--color-secondary)] rounded-lg px-3 py-1 w-24 focus:outline-none focus:border-[var(--color-accent)] transition"
                 />
