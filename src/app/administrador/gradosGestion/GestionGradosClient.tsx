@@ -1,34 +1,26 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MenuAsignaturas, { Asignatura as AsignaturaMenu } from "./MenuAsignaturas";
+import { getAsignaturas } from "../../api/asignaturasApi";
 
 // Definir tipos para los datos
 interface Asignatura {
-  id: number;
+  id: number | string;
   nombre: string;
-  profesor: string;
+  profesor?: string;
 }
 
 interface Estudiante {
   nombre: string;
-  notas: Record<number, number>; // id de asignatura -> nota
+  notas: Record<string | number, number>; // id de asignatura -> nota
 }
 
 interface Grado {
-  id: number;
+  id: number | string;
   nombre: string;
   estudiantes: Estudiante[];
   asignaturas: Asignatura[];
 }
-
-// Datos simulados de profesores por asignatura
-const profesoresPorAsignatura: Record<number, string> = {
-  1: "Prof. López",
-  2: "Prof. Smith",
-  3: "Prof. Torres",
-  4: "Prof. Ramírez",
-  5: "Prof. Gómez",
-};
 
 // Datos simulados para ejemplo
 const gradosIniciales: Grado[] = [
@@ -55,6 +47,24 @@ export default function GestionGradosClient() {
   const [editando, setEditando] = useState<number | null>(null);
   const [nombreEditado, setNombreEditado] = useState("");
   const [showConfirm, setShowConfirm] = useState<{ tipo: 'grado' | 'asignatura', id: number, nombre: string } | null>(null);
+  const [asignaturasDisponibles, setAsignaturasDisponibles] = useState<AsignaturaMenu[]>([]);
+  const [profesoresPorAsignatura, setProfesoresPorAsignatura] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    async function fetchAsignaturas() {
+      const res = await getAsignaturas();
+      const asignaturas = (res as any).asignaturas as { id: string; nombre: string; profesorIds?: string[] }[];
+      setAsignaturasDisponibles(asignaturas.map((a) => ({ id: a.id, nombre: a.nombre })));
+      const profMap: Record<string, string> = {};
+      asignaturas.forEach((a) => {
+        if (a.profesorIds && a.profesorIds.length > 0) {
+          profMap[a.id] = `Profesor asignado (${a.profesorIds.length})`;
+        }
+      });
+      setProfesoresPorAsignatura(profMap);
+    }
+    fetchAsignaturas();
+  }, []);
 
   // Agregar grado
   const agregarGrado = () => {
@@ -91,7 +101,7 @@ export default function GestionGradosClient() {
 
   // Editar grado
   const iniciarEdicion = (grado: Grado) => {
-    setEditando(grado.id);
+    setEditando(grado.id as number);
     setNombreEditado(grado.nombre);
   };
   const guardarEdicion = (id: number) => {
@@ -130,14 +140,14 @@ export default function GestionGradosClient() {
                   {editando === grado.id ? (
                     <>
                       <input value={nombreEditado} onChange={e => setNombreEditado(e.target.value)} className="input-modern mr-2" />
-                      <button onClick={() => guardarEdicion(grado.id)} className="btn-primary px-2 py-1 text-xs">Guardar</button>
+                      <button onClick={() => guardarEdicion(grado.id as number)} className="btn-primary px-2 py-1 text-xs">Guardar</button>
                     </>
                   ) : (
                     <>
                       <span className="font-semibold">{grado.nombre}</span>
                       <div className="flex gap-2">
                         <button onClick={e => { e.stopPropagation(); iniciarEdicion(grado); }} className="btn-secondary px-2 py-1 text-xs">Editar</button>
-                        <button onClick={e => { e.stopPropagation(); eliminarGrado(grado.id); }} className="btn-danger px-2 py-1 text-xs">Eliminar</button>
+                        <button onClick={e => { e.stopPropagation(); eliminarGrado(grado.id as number); }} className="btn-danger px-2 py-1 text-xs">Eliminar</button>
                       </div>
                     </>
                   )}
@@ -184,21 +194,23 @@ export default function GestionGradosClient() {
                 <h2 className="font-bold text-lg mb-2 mt-8">Asignaturas y Profesores</h2>
                 <MenuAsignaturas
                   asignaturasSeleccionadas={gradoSeleccionado.asignaturas.map(({ id, nombre }) => ({ id, nombre }))}
+                  asignaturasDisponibles={asignaturasDisponibles}
+                  profesoresPorAsignatura={profesoresPorAsignatura}
                   onAgregar={(asig: AsignaturaMenu) => {
                     setGrados(grados.map(g =>
                       g.id === gradoSeleccionado.id
-                        ? { ...g, asignaturas: [...g.asignaturas, { ...asig, profesor: profesoresPorAsignatura[asig.id] || "" }] }
+                        ? { ...g, asignaturas: [...g.asignaturas, { ...asig }] }
                         : g
                     ));
                     setGradoSeleccionado({
                       ...gradoSeleccionado,
-                      asignaturas: [...gradoSeleccionado.asignaturas, { ...asig, profesor: profesoresPorAsignatura[asig.id] || "" }],
+                      asignaturas: [...gradoSeleccionado.asignaturas, { ...asig }],
                     });
                   }}
-                  onEliminar={(id: number) => {
+                  onEliminar={(id: number | string) => {
                     const asig = gradoSeleccionado.asignaturas.find(a => a.id === id);
                     if (!asig) return;
-                    setShowConfirm({ tipo: 'asignatura', id, nombre: asig.nombre });
+                    setShowConfirm({ tipo: 'asignatura', id: typeof id === 'string' ? Number(id) : id, nombre: asig.nombre });
                   }}
                 />
               </div>

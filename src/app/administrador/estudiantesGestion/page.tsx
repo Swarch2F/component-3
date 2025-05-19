@@ -3,17 +3,19 @@
 import { useState, useEffect } from "react";
 import DataContainer from "../../components/DataContainer";
 import { type Student } from "../../types/student";
-
-// Datos mockeados temporalmente
-const mockStudents: Student[] = [
-  { id: "1", nombre: "María Pérez", documento: "12345678", nacimiento: "2008-05-10", acudiente: "Ana Pérez", grado: "1C" },
-  { id: "2", nombre: "Juan Gómez", documento: "87654321", nacimiento: "2007-11-22", acudiente: "Luis Gómez", grado: "2A" },
-  { id: "3", nombre: "Laura Sánchez", documento: "11223344", nacimiento: "2008-01-15", acudiente: "Marta Sánchez", grado: "3V" },
-  { id: "4", nombre: "Carlos Ruiz", documento: "44332211", nacimiento: "2007-09-30", acudiente: "Pedro Ruiz", grado: "5A" },
-];
+import {
+  getEstudiantes,
+  createEstudiante,
+  updateEstudiante,
+  deleteEstudiante,
+  getCursos,
+  Curso,
+  Estudiante
+} from "../../api/estudiantesCursos.api";
 
 export default function EstudiantesGestionPage() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [cursos, setCursos] = useState<Curso[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -22,17 +24,34 @@ export default function EstudiantesGestionPage() {
   const [newStudent, setNewStudent] = useState({ nombre: "", documento: "", nacimiento: "", acudiente: "", grado: "" });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string; nombre: string } | null>(null);
 
-  // Obtener lista de grados únicos
-  const gradosUnicos = Array.from(new Set([
-    ...students.map(s => s.grado),
-    ...mockStudents.map(s => s.grado)
-  ])).filter(Boolean);
-
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setStudents(mockStudents);
+        const cursosRes = await getCursos();
+        const cursosList: Curso[] = cursosRes.results || cursosRes;
+        setCursos(cursosList); // soporta paginado y sin paginar
+        const estRes = await getEstudiantes();
+        setStudents(
+          (estRes.results || estRes).map((e: Estudiante) => {
+            let grado = "";
+            // Type guard para curso: puede ser objeto con nombre o id
+            if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
+              grado = (e.curso as { nombre: string }).nombre;
+            } else {
+              const cursoObj = cursosList.find((c) => c.id === e.curso);
+              grado = cursoObj?.nombre || "";
+            }
+            return {
+              id: String(e.id),
+              nombre: e.nombre_completo,
+              documento: e.documento,
+              nacimiento: e.fecha_nacimiento,
+              acudiente: e.acudiente,
+              grado
+            };
+          })
+        );
       } catch (err) {
         setError("Error cargando los datos de estudiantes");
       } finally {
@@ -47,11 +66,40 @@ export default function EstudiantesGestionPage() {
     setShowEditModal(true);
   };
 
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     if (!editStudent) return;
-    setStudents(prev => prev.map(s => s.id === editStudent.id ? editStudent : s));
+    const cursoObj = cursos.find(c => c.nombre === editStudent.grado);
+    if (!cursoObj) return alert("Grado inválido");
+    await updateEstudiante(Number(editStudent.id), {
+      nombre_completo: editStudent.nombre,
+      documento: editStudent.documento,
+      fecha_nacimiento: editStudent.nacimiento,
+      acudiente: editStudent.acudiente,
+      curso: cursoObj.id!
+    });
     setShowEditModal(false);
     setEditStudent(null);
+    // Refrescar
+    const estRes = await getEstudiantes();
+    setStudents(
+      (estRes.results || estRes).map((e: Estudiante) => {
+        let grado = "";
+        if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
+          grado = (e.curso as { nombre: string }).nombre;
+        } else {
+          const cursoObj = cursos.find((c) => c.id === e.curso);
+          grado = cursoObj?.nombre || "";
+        }
+        return {
+          id: String(e.id),
+          nombre: e.nombre_completo,
+          documento: e.documento,
+          nacimiento: e.fecha_nacimiento,
+          acudiente: e.acudiente,
+          grado
+        };
+      })
+    );
   };
 
   const handleDelete = (id: string) => {
@@ -60,22 +108,69 @@ export default function EstudiantesGestionPage() {
     setShowDeleteConfirm({ id, nombre: estudiante.nombre });
   };
 
-  const confirmarEliminar = () => {
+  const confirmarEliminar = async () => {
     if (!showDeleteConfirm) return;
-    setStudents(prev => prev.filter(s => s.id !== showDeleteConfirm.id));
+    await deleteEstudiante(Number(showDeleteConfirm.id));
     setShowDeleteConfirm(null);
+    // Refrescar
+    const estRes = await getEstudiantes();
+    setStudents(
+      (estRes.results || estRes).map((e: Estudiante) => {
+        let grado = "";
+        if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
+          grado = (e.curso as { nombre: string }).nombre;
+        } else {
+          const cursoObj = cursos.find((c) => c.id === e.curso);
+          grado = cursoObj?.nombre || "";
+        }
+        return {
+          id: String(e.id),
+          nombre: e.nombre_completo,
+          documento: e.documento,
+          nacimiento: e.fecha_nacimiento,
+          acudiente: e.acudiente,
+          grado
+        };
+      })
+    );
   };
 
   const cancelarEliminar = () => setShowDeleteConfirm(null);
 
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     if (!newStudent.nombre.trim() || !newStudent.documento.trim() || !newStudent.nacimiento.trim() || !newStudent.acudiente.trim() || !newStudent.grado.trim()) return;
-    setStudents(prev => [
-      ...prev,
-      { id: (Date.now()).toString(), ...newStudent }
-    ]);
+    const cursoObj = cursos.find(c => c.nombre === newStudent.grado);
+    if (!cursoObj) return alert("Grado inválido");
+    await createEstudiante({
+      nombre_completo: newStudent.nombre,
+      documento: newStudent.documento,
+      fecha_nacimiento: newStudent.nacimiento,
+      acudiente: newStudent.acudiente,
+      curso: cursoObj.id!
+    });
     setShowAddModal(false);
     setNewStudent({ nombre: "", documento: "", nacimiento: "", acudiente: "", grado: "" });
+    // Refrescar
+    const estRes = await getEstudiantes();
+    setStudents(
+      (estRes.results || estRes).map((e: Estudiante) => {
+        let grado = "";
+        if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
+          grado = (e.curso as { nombre: string }).nombre;
+        } else {
+          const cursoObj = cursos.find((c) => c.id === e.curso);
+          grado = cursoObj?.nombre || "";
+        }
+        return {
+          id: String(e.id),
+          nombre: e.nombre_completo,
+          documento: e.documento,
+          nacimiento: e.fecha_nacimiento,
+          acudiente: e.acudiente,
+          grado
+        };
+      })
+    );
   };
 
   return (
@@ -146,8 +241,8 @@ export default function EstudiantesGestionPage() {
               onChange={e => setNewStudent(s => ({ ...s, grado: e.target.value }))}
             >
               <option value="">Selecciona un grado</option>
-              {gradosUnicos.map(grado => (
-                <option key={grado} value={grado}>{grado}</option>
+              {cursos.map(curso => (
+                <option key={curso.id} value={curso.nombre}>{curso.nombre}</option>
               ))}
             </select>
             <input
@@ -204,8 +299,8 @@ export default function EstudiantesGestionPage() {
               onChange={e => setEditStudent(s => s ? { ...s, grado: e.target.value } : s)}
             >
               <option value="">Selecciona un grado</option>
-              {gradosUnicos.map(grado => (
-                <option key={grado} value={grado}>{grado}</option>
+              {cursos.map(curso => (
+                <option key={curso.id} value={curso.nombre}>{curso.nombre}</option>
               ))}
             </select>
             <input

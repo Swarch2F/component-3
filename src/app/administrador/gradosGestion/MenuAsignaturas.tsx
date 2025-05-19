@@ -2,37 +2,25 @@
 import { useState } from "react";
 
 export interface Asignatura {
-  id: number;
+  id: number | string;
   nombre: string;
 }
 
-// Datos simulados de asignaturas disponibles
-const asignaturasDisponibles: Asignatura[] = [
-  { id: 1, nombre: "Matemáticas" },
-  { id: 2, nombre: "Inglés" },
-  { id: 3, nombre: "Ciencias" },
-  { id: 4, nombre: "Historia" },
-  { id: 5, nombre: "Arte" },
-];
+export interface MenuAsignaturasProps {
+  asignaturasSeleccionadas: Asignatura[];
+  asignaturasDisponibles: Asignatura[];
+  profesoresPorAsignatura?: Record<string | number, string>;
+  onAgregar: (asig: Asignatura) => void;
+  onEliminar: (id: number | string) => void;
+}
 
 export default function MenuAsignaturas({
   asignaturasSeleccionadas,
+  asignaturasDisponibles,
+  profesoresPorAsignatura = {},
   onAgregar,
   onEliminar,
-}: {
-  asignaturasSeleccionadas: Asignatura[];
-  onAgregar: (asig: Asignatura) => void;
-  onEliminar: (id: number) => void;
-}) {
-  // Profesores simulados por asignatura
-  const profesoresPorAsignatura: Record<number, string> = {
-    1: "Prof. López",
-    2: "Prof. Smith",
-    3: "Prof. Torres",
-    4: "Prof. Ramírez",
-    5: "Prof. Gómez",
-  };
-
+}: MenuAsignaturasProps) {
   const [open, setOpen] = useState(false);
   const disponiblesParaAgregar = asignaturasDisponibles.filter(
     (asig) => !asignaturasSeleccionadas.some((a) => a.id === asig.id)
@@ -47,7 +35,9 @@ export default function MenuAsignaturas({
           asignaturasSeleccionadas.map((asig) => (
             <li key={asig.id} className="flex items-center justify-between border-b py-1">
               <span>{asig.nombre}</span>
-              <span className="text-xs text-primary-600 font-semibold ml-2">{profesoresPorAsignatura[asig.id]}</span>
+              {profesoresPorAsignatura[asig.id] && (
+                <span className="text-xs text-primary-600 font-semibold ml-2">{profesoresPorAsignatura[asig.id]}</span>
+              )}
               <button className="btn-danger px-2 py-1 text-xs ml-2" onClick={() => onEliminar(asig.id)}>Quitar</button>
             </li>
           ))
@@ -75,7 +65,9 @@ export default function MenuAsignaturas({
                   }}
                 >
                   <span>{asig.nombre}</span>
-                  <span className="text-xs text-primary-600 font-semibold ml-2">{profesoresPorAsignatura[asig.id]}</span>
+                  {profesoresPorAsignatura[asig.id] && (
+                    <span className="text-xs text-primary-600 font-semibold ml-2">{profesoresPorAsignatura[asig.id]}</span>
+                  )}
                 </div>
               ))
             )}
