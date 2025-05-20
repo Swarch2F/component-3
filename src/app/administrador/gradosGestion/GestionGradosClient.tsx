@@ -38,6 +38,7 @@ export default function GestionGradosClient() {
   const [periodo, setPeriodo] = useState<string>("");
   const [calificaciones, setCalificaciones] = useState<any[]>([]);
   const [loadingCalificaciones, setLoadingCalificaciones] = useState(false);
+  const [periodoError, setPeriodoError] = useState<string>("");
 
   // Opciones de periodo (puedes ajustar según tus periodos reales)
   const periodosDisponibles = [
@@ -134,6 +135,11 @@ export default function GestionGradosClient() {
     fetchCalificacionesYAsignaturas();
   }, [gradoSeleccionado?.id, periodo, asignaturasDisponibles]);
 
+  // Obtener periodos únicos con calificaciones para el grado seleccionado
+  const periodosConCalificaciones = gradoSeleccionado && calificaciones.length > 0
+    ? Array.from(new Set(calificaciones.map(c => c.periodo))).sort()
+    : [];
+
   // Agregar grado
   const agregarGrado = async () => {
     if (nuevoGrado.trim() === "") return;
@@ -182,6 +188,47 @@ export default function GestionGradosClient() {
     setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
     setEditando(null);
     setNombreEditado("");
+  };
+
+  // Eliminar asignatura y profesor del grado (elimina todas las calificaciones de esa asignatura en el periodo actual)
+  const eliminarAsignaturaDeGrado = async (asignaturaId: number | string) => {
+    if (!gradoSeleccionado || !periodo) return;
+    // Buscar todas las calificaciones de esa asignatura, grado y periodo
+    const cursoId = String(gradoSeleccionado.id);
+    const res = await getCalificaciones({ cursoId, asignaturaId: String(asignaturaId), periodo });
+    const calificacionesAEliminar = (res as any).calificaciones || [];
+    // Eliminar todas las calificaciones encontradas
+    for (const cal of calificacionesAEliminar) {
+      await import("../../api/calificacionesApi").then(api => api.eliminarCalificacion(cal.id));
+    }
+    // Refrescar calificaciones y asignaturas
+    const res2 = await getCalificaciones({ cursoId, periodo });
+    const nuevasCalificaciones = (res2 as any).calificaciones || [];
+    setCalificaciones(nuevasCalificaciones);
+    // Reconstruir asignaturas del grado seleccionado según las calificaciones actuales
+    const asignaturasMap: Record<string, { id: string, nombre: string, profesor?: string }> = {};
+    nuevasCalificaciones.forEach((c: any) => {
+      if (c.periodo !== periodo) return;
+      if (!asignaturasMap[c.asignaturaId]) {
+        let profesor = undefined;
+        if (c.observaciones && c.observaciones.startsWith("Profesor:")) {
+          profesor = c.observaciones.replace("Profesor:", "").trim();
+        }
+        asignaturasMap[c.asignaturaId] = {
+          id: c.asignaturaId,
+          nombre: "",
+          profesor
+        };
+      }
+    });
+    Object.values(asignaturasMap).forEach(a => {
+      const found = asignaturasDisponibles.find(ad => String(ad.id) === String(a.id));
+      if (found) a.nombre = found.nombre;
+    });
+    setGradoSeleccionado(prev => prev ? {
+      ...prev,
+      asignaturas: Object.values(asignaturasMap)
+    } : null);
   };
 
   return (
@@ -242,17 +289,25 @@ export default function GestionGradosClient() {
                 {/* Selector de periodo */}
                 <div className="mb-4 flex items-center gap-2">
                   <label className="font-semibold">Periodo:</label>
-                  <select
+                  <input
                     className="border rounded px-2 py-1"
+                    list="periodos-list"
                     value={periodo}
-                    onChange={e => setPeriodo(e.target.value)}
-                  >
-                    <option value="">Selecciona un periodo</option>
-                    {periodosDisponibles.map(p => (
-                      <option key={p} value={p}>{p}</option>
+                    onChange={e => {
+                      setPeriodo(e.target.value);
+                      if (e.target.value) setPeriodoError("");
+                    }}
+                    placeholder="Ej: 2025-1"
+                  />
+                  <datalist id="periodos-list">
+                    {periodosConCalificaciones.map(p => (
+                      <option key={p} value={p} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
+                {periodoError && (
+                  <div className="text-red-500 text-sm mb-2">{periodoError}</div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="min-w-full border text-sm">
                     <thead>
@@ -297,6 +352,11 @@ export default function GestionGradosClient() {
                   asignaturasDisponibles={asignaturasDisponibles}
                   profesoresPorAsignatura={profesoresPorAsignatura}
                   onAgregar={async (asig: AsignaturaMenu & { profesor?: any }) => {
+                    if (!periodo) {
+                      setPeriodoError("Debes ingresar o seleccionar un periodo antes de agregar una asignatura.");
+                      return;
+                    }
+                    setPeriodoError("");
                     // Actualizar estado local
                     setGrados(grados.map(g =>
                       g.id === gradoSeleccionado.id
@@ -329,11 +389,7 @@ export default function GestionGradosClient() {
                     const res = await getCalificaciones({ cursoId, periodo });
                     setCalificaciones((res as any).calificaciones || []);
                   }}
-                  onEliminar={(id: number | string) => {
-                    const asig = gradoSeleccionado.asignaturas.find(a => a.id === id);
-                    if (!asig) return;
-                    setShowConfirm({ tipo: 'asignatura', id: typeof id === 'string' ? Number(id) : id, nombre: asig.nombre });
-                  }}
+                  onEliminar={eliminarAsignaturaDeGrado}
                 />
               </div>
             ) : (

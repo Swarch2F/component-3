@@ -36,12 +36,16 @@ export default function MenuAsignaturas({
   const [profesorSeleccionado, setProfesorSeleccionado] = useState<string>("");
   const [asignaturaSeleccionada, setAsignaturaSeleccionada] = useState<string>("");
   const [asignaturasFull, setAsignaturasFull] = useState<Asignatura[]>([]);
+  const [eliminandoId, setEliminandoId] = useState<string | number | null>(null);
 
   useEffect(() => {
     getProfesores().then((res: any) => setProfesores(res.profesores || []));
   }, []);
 
-  // Al abrir el modal, cargar asignaturas con profesorIds actualizados
+  // Cargar asignaturasFull siempre al montar y también al abrir el modal
+  useEffect(() => {
+    getAsignaturas().then((res: any) => setAsignaturasFull(res.asignaturas || []));
+  }, []);
   useEffect(() => {
     if (open) {
       getAsignaturas().then((res: any) => setAsignaturasFull(res.asignaturas || []));
@@ -91,7 +95,15 @@ export default function MenuAsignaturas({
                 {nombreProfesor && (
                   <span className="text-xs text-primary-600 font-semibold ml-2">{nombreProfesor}</span>
                 )}
-                <button className="btn-danger px-2 py-1 text-xs ml-2" onClick={() => onEliminar(asig.id)}>Quitar</button>
+                <button
+                  className={`btn-danger px-2 py-1 text-xs ml-2 ${eliminandoId === asig.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={eliminandoId === asig.id}
+                  onClick={async () => {
+                    setEliminandoId(asig.id);
+                    await onEliminar(asig.id);
+                    setEliminandoId(null);
+                  }}
+                >{eliminandoId === asig.id ? 'Quitando...' : 'Quitar'}</button>
               </li>
             );
           })
