@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Student } from "../types/student";
 
 interface Props {
@@ -12,6 +12,12 @@ export default function TableEstudiantes({ data }: Props) {
   const [sortAsc, setSortAsc] = useState(true);
   const [selected, setSelected] = useState<Student | null>(null);
   const [students, setStudents] = useState<Student[]>(data);
+
+  // Sincronizar el estado interno con el prop data
+  useEffect(() => {
+    setStudents(data);
+    setEdited(false);
+  }, [data]);
 
   // Para detectar cambios y habilitar el botón de guardar
   const [edited, setEdited] = useState(false);
@@ -95,7 +101,7 @@ export default function TableEstudiantes({ data }: Props) {
                   value={s.nota ?? ""}
                   onChange={(e) => {
                     let value = e.target.value;
-                    //La nota tienen que estar en el rango de 0 a 5
+                    // Limitar el valor entre 0 y 5
                     if (value !== "") {
                       let num = Number(value);
                       if (num < 0) value = "0";
