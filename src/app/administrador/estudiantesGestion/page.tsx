@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import DataContainer from "../../components/DataContainer";
 import { type Student } from "../../types/student";
 import {
-  getEstudiantes,
+  getAllEstudiantes,
+  getAllCursos,
   createEstudiante,
   updateEstudiante,
   deleteEstudiante,
-  getCursos,
   Curso,
   Estudiante
 } from "../../api/estudiantesCursos.api";
@@ -24,18 +24,22 @@ export default function EstudiantesGestionPage() {
   const [newStudent, setNewStudent] = useState({ nombre: "", documento: "", nacimiento: "", acudiente: "", grado: "" });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string; nombre: string } | null>(null);
 
+  // Paginación local
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.ceil(students.length / PAGE_SIZE);
+  const paginated = students.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const cursosRes = await getCursos();
-        const cursosList: Curso[] = cursosRes.results || cursosRes;
-        setCursos(cursosList); // soporta paginado y sin paginar
-        const estRes = await getEstudiantes();
+        const cursosList: Curso[] = await getAllCursos();
+        setCursos(cursosList);
+        const estudiantesList: Estudiante[] = await getAllEstudiantes();
         setStudents(
-          (estRes.results || estRes).map((e: Estudiante) => {
+          estudiantesList.map((e: Estudiante) => {
             let grado = "";
-            // Type guard para curso: puede ser objeto con nombre o id
             if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
               grado = (e.curso as { nombre: string }).nombre;
             } else {
@@ -80,9 +84,9 @@ export default function EstudiantesGestionPage() {
     setShowEditModal(false);
     setEditStudent(null);
     // Refrescar
-    const estRes = await getEstudiantes();
+    const estudiantesList: Estudiante[] = await getAllEstudiantes();
     setStudents(
-      (estRes.results || estRes).map((e: Estudiante) => {
+      estudiantesList.map((e: Estudiante) => {
         let grado = "";
         if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
           grado = (e.curso as { nombre: string }).nombre;
@@ -113,9 +117,9 @@ export default function EstudiantesGestionPage() {
     await deleteEstudiante(Number(showDeleteConfirm.id));
     setShowDeleteConfirm(null);
     // Refrescar
-    const estRes = await getEstudiantes();
+    const estudiantesList: Estudiante[] = await getAllEstudiantes();
     setStudents(
-      (estRes.results || estRes).map((e: Estudiante) => {
+      estudiantesList.map((e: Estudiante) => {
         let grado = "";
         if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
           grado = (e.curso as { nombre: string }).nombre;
@@ -151,9 +155,9 @@ export default function EstudiantesGestionPage() {
     setShowAddModal(false);
     setNewStudent({ nombre: "", documento: "", nacimiento: "", acudiente: "", grado: "" });
     // Refrescar
-    const estRes = await getEstudiantes();
+    const estudiantesList: Estudiante[] = await getAllEstudiantes();
     setStudents(
-      (estRes.results || estRes).map((e: Estudiante) => {
+      estudiantesList.map((e: Estudiante) => {
         let grado = "";
         if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
           grado = (e.curso as { nombre: string }).nombre;
@@ -190,8 +194,8 @@ export default function EstudiantesGestionPage() {
             </button>
           </div>
           <DataContainer loading={loading} error={error} onRetry={() => window.location.reload()}>
-            <div className="overflow-x-auto card-modern p-0">
-              <table className="min-w-full divide-y divide-[var(--color-gray)] table-modern">
+            <div className="card-modern p-0 w-full" style={{ overflowX: 'auto' }}>
+              <table className="w-full border-separate border-spacing-y-2" style={{ minWidth: 0 }}>
                 <thead>
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider">Nombre</th>
@@ -203,7 +207,7 @@ export default function EstudiantesGestionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((estudiante) => (
+                  {paginated.map((estudiante) => (
                     <tr key={estudiante.id} className="hover:bg-[var(--color-gray)] transition">
                       <td className="px-6 py-4 whitespace-nowrap text-base font-medium">{estudiante.nombre}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-base">{estudiante.documento}</td>
@@ -218,6 +222,31 @@ export default function EstudiantesGestionPage() {
                   ))}
                 </tbody>
               </table>
+              {/* Controles de paginación */}
+              <div className="flex flex-wrap items-center justify-between mt-4 gap-2">
+                <div className="text-sm text-gray-600">
+                  Mostrando {paginated.length} de {students.length} estudiantes
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    className="btn-secondary px-3 py-1 rounded"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    Anterior
+                  </button>
+                  <span className="px-2 py-1 text-sm">
+                    Página {page} de {totalPages}
+                  </span>
+                  <button
+                    className="btn-secondary px-3 py-1 rounded"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
             </div>
           </DataContainer>
         </div>

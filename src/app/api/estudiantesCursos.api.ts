@@ -79,3 +79,29 @@ export async function deleteEstudiante(id: number) {
   if (!res.ok) throw new Error("Error al eliminar estudiante");
   return true;
 }
+
+export async function getAllCursos() {
+  let url = `${API_URL}/cursos/`;
+  let all: Curso[] = [];
+  while (url) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("Error al obtener cursos");
+    const data = await res.json();
+    all = all.concat(data.results || []);
+    url = data.next;
+  }
+  return all;
+}
+
+export async function getAllEstudiantes() {
+  let url = `${API_URL}/estudiantes/`;
+  let all: Estudiante[] = [];
+  while (url) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("Error al obtener estudiantes");
+    const data = await res.json();
+    all = all.concat(data.results || []);
+    url = data.next;
+  }
+  return all;
+}
