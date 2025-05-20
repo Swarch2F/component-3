@@ -39,6 +39,7 @@ export default function GestionGradosClient() {
   const [calificaciones, setCalificaciones] = useState<any[]>([]);
   const [loadingCalificaciones, setLoadingCalificaciones] = useState(false);
   const [periodoError, setPeriodoError] = useState<string>("");
+  const [errorGrado, setErrorGrado] = useState<string>("");
 
   // Opciones de periodo (puedes ajustar según tus periodos reales)
   const periodosDisponibles = [
@@ -143,10 +144,22 @@ export default function GestionGradosClient() {
   // Agregar grado
   const agregarGrado = async () => {
     if (nuevoGrado.trim() === "") return;
-    await createCurso({ nombre: nuevoGrado, codigo: `G${Date.now()}` });
-    const cursos: Curso[] = await getAllCursos();
-    setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
-    setNuevoGrado("");
+    setErrorGrado("");
+    // Generar el código a partir del nombre, ejemplo: "Décimo C" -> "DECIMO-C"
+    const codigo = nuevoGrado
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "") // Quitar tildes
+      .replace(/[^\w\s-]/g, "") // Quitar caracteres especiales
+      .replace(/\s+/g, "-") // Espacios por guion
+      .toUpperCase();
+    try {
+      await createCurso({ nombre: nuevoGrado, codigo });
+      const cursos: Curso[] = await getAllCursos();
+      setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
+      setNuevoGrado("");
+    } catch (e: any) {
+      setErrorGrado(e.message || "Error al crear grado");
+    }
   };
 
   // Eliminar grado con confirmación
@@ -279,6 +292,9 @@ export default function GestionGradosClient() {
               <input value={nuevoGrado} onChange={e => setNuevoGrado(e.target.value)} placeholder="Nuevo grado" className="input-modern flex-1" />
               <button onClick={agregarGrado} className="btn-primary px-4">Agregar</button>
             </div>
+            {errorGrado && (
+              <div className="text-red-500 text-sm mt-2">{errorGrado}</div>
+            )}
           </div>
 
           {/* Detalle del grado seleccionado */}
