@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import MenuAsignaturas, { Asignatura as AsignaturaMenu } from "./MenuAsignaturas";
 import { getAsignaturas } from "../../api/asignaturasApi";
+import { getAllCursos, createCurso, updateCurso, deleteCurso, Curso, getAllEstudiantes, Estudiante as EstudianteApi } from "../../api/estudiantesCursos.api";
+import { getCalificaciones, registrarCalificacion } from "../../api/calificacionesApi";
 
 // Definir tipos para los datos
 interface Asignatura {
@@ -22,26 +24,9 @@ interface Grado {
   asignaturas: Asignatura[];
 }
 
-// Datos simulados para ejemplo
-const gradosIniciales: Grado[] = [
-  { id: 1, nombre: "1A", estudiantes: [
-      { nombre: "María Pérez", notas: { 1: 8.5, 2: 7.2 } },
-      { nombre: "Juan Gómez", notas: { 1: 6.9, 2: 8.0 } }
-    ], asignaturas: [
-      { id: 1, nombre: "Matemáticas", profesor: "Prof. López" },
-      { id: 2, nombre: "Inglés", profesor: "Prof. Smith" }
-    ] },
-  { id: 2, nombre: "2B", estudiantes: [
-      { nombre: "Laura Sánchez", notas: { 1: 9.1, 3: 7.5 } },
-      { nombre: "Carlos Ruiz", notas: { 1: 6.8, 3: 8.2 } }
-    ], asignaturas: [
-      { id: 1, nombre: "Matemáticas", profesor: "Prof. López" },
-      { id: 3, nombre: "Ciencias", profesor: "Prof. Torres" }
-    ] },
-];
-
 export default function GestionGradosClient() {
-  const [grados, setGrados] = useState<Grado[]>(gradosIniciales);
+  const [grados, setGrados] = useState<Grado[]>([]);
+  const [loadingGrados, setLoadingGrados] = useState(true);
   const [gradoSeleccionado, setGradoSeleccionado] = useState<Grado | null>(null);
   const [nuevoGrado, setNuevoGrado] = useState("");
   const [editando, setEditando] = useState<number | null>(null);
@@ -49,8 +34,29 @@ export default function GestionGradosClient() {
   const [showConfirm, setShowConfirm] = useState<{ tipo: 'grado' | 'asignatura', id: number, nombre: string } | null>(null);
   const [asignaturasDisponibles, setAsignaturasDisponibles] = useState<AsignaturaMenu[]>([]);
   const [profesoresPorAsignatura, setProfesoresPorAsignatura] = useState<Record<string, string>>({});
+  const [estudiantesPorGrado, setEstudiantesPorGrado] = useState<Record<number | string, EstudianteApi[]>>({});
+  const [periodo, setPeriodo] = useState<string>("");
+  const [calificaciones, setCalificaciones] = useState<any[]>([]);
+  const [loadingCalificaciones, setLoadingCalificaciones] = useState(false);
+
+  // Opciones de periodo (puedes ajustar según tus periodos reales)
+  const periodosDisponibles = [
+    "2025-1",
+    "2025-2",
+    "2026-1",
+    "2026-2"
+  ];
 
   useEffect(() => {
+    async function fetchGrados() {
+      setLoadingGrados(true);
+      try {
+        const cursos: Curso[] = await getAllCursos();
+        setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
+      } finally {
+        setLoadingGrados(false);
+      }
+    }
     async function fetchAsignaturas() {
       const res = await getAsignaturas();
       const asignaturas = (res as any).asignaturas as { id: string; nombre: string; profesorIds?: string[] }[];
@@ -63,13 +69,77 @@ export default function GestionGradosClient() {
       });
       setProfesoresPorAsignatura(profMap);
     }
+    fetchGrados();
     fetchAsignaturas();
   }, []);
 
+  useEffect(() => {
+    if (!gradoSeleccionado) return;
+    async function fetchEstudiantes() {
+      const estudiantes: EstudianteApi[] = await getAllEstudiantes();
+      if (!gradoSeleccionado) return;
+      setEstudiantesPorGrado(prev => ({
+        ...prev,
+        [gradoSeleccionado.id!]: estudiantes.filter(e => e.curso === gradoSeleccionado.id)
+      }));
+    }
+    fetchEstudiantes();
+  }, [gradoSeleccionado]);
+
+  // Cargar calificaciones y reconstruir asignaturas al cambiar grado, periodo o calificaciones
+  useEffect(() => {
+    async function fetchCalificacionesYAsignaturas() {
+      if (!gradoSeleccionado || !periodo) {
+        setCalificaciones([]);
+        setGradoSeleccionado(prev => prev ? { ...prev, asignaturas: [] } : null);
+        return;
+      }
+      setLoadingCalificaciones(true);
+      try {
+        const res = await getCalificaciones({ cursoId: String(gradoSeleccionado.id), periodo });
+        const calificaciones = (res as any).calificaciones || [];
+        setCalificaciones(calificaciones);
+        // Solo asignaturas con calificaciones en este periodo
+        const asignaturasMap: Record<string, { id: string, nombre: string, profesor?: string }> = {};
+        calificaciones.forEach((c: any) => {
+          // Solo considerar calificaciones del periodo actual
+          if (c.periodo !== periodo) return;
+          if (!asignaturasMap[c.asignaturaId]) {
+            let profesor = undefined;
+            if (c.observaciones && c.observaciones.startsWith("Profesor:")) {
+              profesor = c.observaciones.replace("Profesor:", "").trim();
+            }
+            asignaturasMap[c.asignaturaId] = {
+              id: c.asignaturaId,
+              nombre: "",
+              profesor
+            };
+          }
+        });
+        Object.values(asignaturasMap).forEach(a => {
+          const found = asignaturasDisponibles.find(ad => String(ad.id) === String(a.id));
+          if (found) a.nombre = found.nombre;
+        });
+        setGradoSeleccionado(prev => prev ? {
+          ...prev,
+          asignaturas: Object.values(asignaturasMap)
+        } : null);
+      } catch (e) {
+        setCalificaciones([]);
+        setGradoSeleccionado(prev => prev ? { ...prev, asignaturas: [] } : null);
+      } finally {
+        setLoadingCalificaciones(false);
+      }
+    }
+    fetchCalificacionesYAsignaturas();
+  }, [gradoSeleccionado?.id, periodo, asignaturasDisponibles]);
+
   // Agregar grado
-  const agregarGrado = () => {
+  const agregarGrado = async () => {
     if (nuevoGrado.trim() === "") return;
-    setGrados([...grados, { id: Date.now(), nombre: nuevoGrado, estudiantes: [], asignaturas: [] }]);
+    await createCurso({ nombre: nuevoGrado, codigo: `G${Date.now()}` });
+    const cursos: Curso[] = await getAllCursos();
+    setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
     setNuevoGrado("");
   };
 
@@ -79,10 +149,12 @@ export default function GestionGradosClient() {
     if (!grado) return;
     setShowConfirm({ tipo: 'grado', id, nombre: grado.nombre });
   };
-  const confirmarEliminar = () => {
+  const confirmarEliminar = async () => {
     if (!showConfirm) return;
     if (showConfirm.tipo === 'grado') {
-      setGrados(grados.filter(g => g.id !== showConfirm.id));
+      await deleteCurso(showConfirm.id);
+      const cursos: Curso[] = await getAllCursos();
+      setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
       if (gradoSeleccionado && gradoSeleccionado.id === showConfirm.id) setGradoSeleccionado(null);
     } else if (showConfirm.tipo === 'asignatura' && gradoSeleccionado) {
       setGrados(grados.map(g =>
@@ -104,8 +176,10 @@ export default function GestionGradosClient() {
     setEditando(grado.id as number);
     setNombreEditado(grado.nombre);
   };
-  const guardarEdicion = (id: number) => {
-    setGrados(grados.map(g => g.id === id ? { ...g, nombre: nombreEditado } : g));
+  const guardarEdicion = async (id: number) => {
+    await updateCurso(id, { nombre: nombreEditado });
+    const cursos: Curso[] = await getAllCursos();
+    setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
     setEditando(null);
     setNombreEditado("");
   };
@@ -165,26 +239,52 @@ export default function GestionGradosClient() {
             {gradoSeleccionado ? (
               <div>
                 <h2 className="font-bold text-lg mb-2">Estudiantes de {gradoSeleccionado.nombre}</h2>
+                {/* Selector de periodo */}
+                <div className="mb-4 flex items-center gap-2">
+                  <label className="font-semibold">Periodo:</label>
+                  <select
+                    className="border rounded px-2 py-1"
+                    value={periodo}
+                    onChange={e => setPeriodo(e.target.value)}
+                  >
+                    <option value="">Selecciona un periodo</option>
+                    {periodosDisponibles.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full border text-sm">
                     <thead>
                       <tr>
                         <th className="px-2 py-1 border">Estudiante</th>
+                        <th className="px-2 py-1 border">Documento</th>
                         {gradoSeleccionado.asignaturas.map((asig) => (
                           <th key={asig.id} className="px-2 py-1 border">{asig.nombre}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {gradoSeleccionado.estudiantes.length === 0 ? (
-                        <tr><td colSpan={1 + gradoSeleccionado.asignaturas.length} className="text-center text-gray-400 py-2">No hay estudiantes.</td></tr>
+                      {gradoSeleccionado && (estudiantesPorGrado[gradoSeleccionado.id] || []).length === 0 ? (
+                        <tr><td colSpan={2 + gradoSeleccionado.asignaturas.length} className="text-center text-gray-400 py-2">No hay estudiantes.</td></tr>
+                      ) : loadingCalificaciones ? (
+                        <tr><td colSpan={2 + gradoSeleccionado.asignaturas.length} className="text-center py-4">Cargando calificaciones...</td></tr>
                       ) : (
-                        gradoSeleccionado.estudiantes.map((est, i) => (
-                          <tr key={i}>
-                            <td className="px-2 py-1 border font-semibold">{est.nombre}</td>
-                            {gradoSeleccionado.asignaturas.map((asig) => (
-                              <td key={asig.id} className="px-2 py-1 border text-center">{typeof est.notas === 'object' && est.notas && asig.id in est.notas ? est.notas[asig.id] : '-'}</td>
-                            ))}
+                        gradoSeleccionado && (estudiantesPorGrado[gradoSeleccionado.id] || []).map((est, i) => (
+                          <tr key={est.id}>
+                            <td className="px-2 py-1 border font-semibold">{est.nombre_completo}</td>
+                            <td className="px-2 py-1 border">{est.documento}</td>
+                            {gradoSeleccionado.asignaturas.map((asig) => {
+                              // Buscar la calificación para este estudiante/asignatura/periodo
+                              const cal = calificaciones.find(
+                                c => c.estudianteId == est.id && c.asignaturaId == asig.id && c.periodo === periodo
+                              );
+                              return (
+                                <td key={asig.id} className="px-2 py-1 border text-center">
+                                  {cal ? cal.nota : <span className="text-gray-400">-</span>}
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))
                       )}
@@ -196,7 +296,8 @@ export default function GestionGradosClient() {
                   asignaturasSeleccionadas={gradoSeleccionado.asignaturas.map(({ id, nombre }) => ({ id, nombre }))}
                   asignaturasDisponibles={asignaturasDisponibles}
                   profesoresPorAsignatura={profesoresPorAsignatura}
-                  onAgregar={(asig: AsignaturaMenu) => {
+                  onAgregar={async (asig: AsignaturaMenu & { profesor?: any }) => {
+                    // Actualizar estado local
                     setGrados(grados.map(g =>
                       g.id === gradoSeleccionado.id
                         ? { ...g, asignaturas: [...g.asignaturas, { ...asig }] }
@@ -206,6 +307,27 @@ export default function GestionGradosClient() {
                       ...gradoSeleccionado,
                       asignaturas: [...gradoSeleccionado.asignaturas, { ...asig }],
                     });
+
+                    // Crear calificaciones para cada estudiante del grado y periodo seleccionado
+                    if (!periodo || !asig.id || !asig.profesor || !gradoSeleccionado) return;
+                    const estudiantes = estudiantesPorGrado[gradoSeleccionado.id] || [];
+                    const cursoId = String(gradoSeleccionado.id);
+                    const asignaturaId = String(asig.id);
+                    const profesorId = asig.profesor.id;
+                    // Nota inicial: null (se usa 0 porque GraphQL espera Float, y null no es válido)
+                    await Promise.all(estudiantes.map(est =>
+                      registrarCalificacion({
+                        estudianteId: String(est.id),
+                        asignaturaId,
+                        cursoId,
+                        periodo,
+                        nota: 0, // o null si la API lo permite
+                        observaciones: `Profesor: ${asig.profesor.nombre} (${profesorId})`
+                      })
+                    ));
+                    // Refrescar calificaciones
+                    const res = await getCalificaciones({ cursoId, periodo });
+                    setCalificaciones((res as any).calificaciones || []);
                   }}
                   onEliminar={(id: number | string) => {
                     const asig = gradoSeleccionado.asignaturas.find(a => a.id === id);
