@@ -22,6 +22,7 @@ export interface MenuAsignaturasProps {
   profesoresPorAsignatura?: Record<string | number, string>;
   onAgregar: (asig: Asignatura & { profesor?: Profesor }) => void;
   onEliminar: (id: number | string) => void;
+  disabled?: boolean;
 }
 
 export default function MenuAsignaturas({
@@ -30,6 +31,7 @@ export default function MenuAsignaturas({
   profesoresPorAsignatura = {},
   onAgregar,
   onEliminar,
+  disabled = false,
 }: MenuAsignaturasProps) {
   const [open, setOpen] = useState(false);
   const [profesores, setProfesores] = useState<Profesor[]>([]);
@@ -70,6 +72,8 @@ export default function MenuAsignaturas({
   const disponiblesParaAgregar = asignaturasDisponibles.filter(
     (asig: Asignatura) => !asignaturasSeleccionadas.some((a) => a.id === asig.id)
   );
+
+  const disabledButton = disponiblesParaAgregar.length === 0 || disabled;
 
   return (
     <div className="space-y-4">
@@ -113,6 +117,7 @@ export default function MenuAsignaturas({
         <button
           className="btn-primary px-4 py-2 text-sm w-full"
           onClick={() => setOpen((v) => !v)}
+          disabled={disabledButton}
         >
           Añadir asignatura
         </button>

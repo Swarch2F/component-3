@@ -50,11 +50,18 @@ export default function GestionGradosClient() {
   ];
 
   useEffect(() => {
-    async function fetchGrados() {
+    async function fetchGradosYEstudiantes() {
       setLoadingGrados(true);
       try {
         const cursos: Curso[] = await getAllCursos();
+        const estudiantes: EstudianteApi[] = await getAllEstudiantes();
         setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
+        // Asociar estudiantes a cada grado
+        const porGrado: Record<number | string, EstudianteApi[]> = {};
+        cursos.forEach(curso => {
+          porGrado[curso.id!] = estudiantes.filter(e => e.curso === curso.id);
+        });
+        setEstudiantesPorGrado(porGrado);
       } finally {
         setLoadingGrados(false);
       }
@@ -71,22 +78,9 @@ export default function GestionGradosClient() {
       });
       setProfesoresPorAsignatura(profMap);
     }
-    fetchGrados();
+    fetchGradosYEstudiantes();
     fetchAsignaturas();
   }, []);
-
-  useEffect(() => {
-    if (!gradoSeleccionado) return;
-    async function fetchEstudiantes() {
-      const estudiantes: EstudianteApi[] = await getAllEstudiantes();
-      if (!gradoSeleccionado) return;
-      setEstudiantesPorGrado(prev => ({
-        ...prev,
-        [gradoSeleccionado.id!]: estudiantes.filter(e => e.curso === gradoSeleccionado.id)
-      }));
-    }
-    fetchEstudiantes();
-  }, [gradoSeleccionado]);
 
   // Cargar calificaciones y reconstruir asignaturas al cambiar grado, periodo o calificaciones
   useEffect(() => {
@@ -281,7 +275,14 @@ export default function GestionGradosClient() {
                       <span className="font-semibold">{grado.nombre}</span>
                       <div className="flex gap-2">
                         <button onClick={e => { e.stopPropagation(); iniciarEdicion(grado); }} className="btn-secondary px-2 py-1 text-xs">Editar</button>
-                        <button onClick={e => { e.stopPropagation(); eliminarGrado(grado.id as number); }} className="btn-danger px-2 py-1 text-xs">Eliminar</button>
+                        <button
+                          onClick={e => { e.stopPropagation(); eliminarGrado(grado.id as number); }}
+                          className={`btn-danger px-2 py-1 text-xs${(estudiantesPorGrado[grado.id] && estudiantesPorGrado[grado.id].length > 0) ? ' opacity-50 cursor-not-allowed' : ''}`}
+                          disabled={!!(estudiantesPorGrado[grado.id] && estudiantesPorGrado[grado.id].length > 0)}
+                          title={estudiantesPorGrado[grado.id] && estudiantesPorGrado[grado.id].length > 0 ? 'No se puede eliminar un grado con estudiantes' : ''}
+                        >
+                          Eliminar
+                        </button>
                       </div>
                     </>
                   )}
@@ -406,6 +407,7 @@ export default function GestionGradosClient() {
                     setCalificaciones((res as any).calificaciones || []);
                   }}
                   onEliminar={eliminarAsignaturaDeGrado}
+                  disabled={!(estudiantesPorGrado[gradoSeleccionado.id] && estudiantesPorGrado[gradoSeleccionado.id].length > 0)}
                 />
               </div>
             ) : (
