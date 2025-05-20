@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense } from "react";
 import TableEstudiantes from "../../components/TableEstudiantes";
 import DataContainer from "../../components/DataContainer";
 import { type Student } from "../../types/student";
@@ -15,6 +16,14 @@ const mockStudents: Student[] = [
 ];
 
 export default function EstudiantesPage() {
+  return (
+    <Suspense fallback={<div>Cargando estudiantes...</div>}>
+      <EstudiantesPageContent />
+    </Suspense>
+  );
+}
+
+function EstudiantesPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const grado = searchParams.get("grado");
