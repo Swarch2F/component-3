@@ -103,11 +103,13 @@ export default function GestionGradosClient() {
           if (!asignaturasMap[c.asignaturaId]) {
             let profesor = undefined;
             if (c.observaciones && c.observaciones.startsWith("Profesor:")) {
-              profesor = c.observaciones.replace("Profesor:", "").trim();
+              // Extraer solo el nombre antes del paréntesis (si existe)
+              const match = c.observaciones.match(/^Profesor:\s*(.+?)(?:\s*\(.*\))?$/);
+              profesor = match ? match[1].trim() : c.observaciones.replace("Profesor:", "").trim();
             }
             asignaturasMap[c.asignaturaId] = {
               id: c.asignaturaId,
-              nombre: "",
+              nombre: "", // Se completará después
               profesor
             };
           }
@@ -223,7 +225,7 @@ export default function GestionGradosClient() {
         }
         asignaturasMap[c.asignaturaId] = {
           id: c.asignaturaId,
-          nombre: "",
+          nombre: "", // Se completará después
           profesor
         };
       }
@@ -365,7 +367,7 @@ export default function GestionGradosClient() {
                 </div>
                 <h2 className="font-bold text-lg mb-2 mt-8">Asignaturas y Profesores</h2>
                 <MenuAsignaturas
-                  asignaturasSeleccionadas={gradoSeleccionado.asignaturas.map(({ id, nombre }) => ({ id, nombre }))}
+                  asignaturasSeleccionadas={gradoSeleccionado.asignaturas}
                   asignaturasDisponibles={asignaturasDisponibles}
                   profesoresPorAsignatura={profesoresPorAsignatura}
                   onAgregar={async (asig: AsignaturaMenu & { profesor?: any }) => {
