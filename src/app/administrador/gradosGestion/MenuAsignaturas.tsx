@@ -14,6 +14,8 @@ export interface Asignatura {
   id: number | string;
   nombre: string;
   profesorIds?: string[];
+  // Permitir opcionalmente la propiedad profesor para las asignaturas seleccionadas en el grado
+  profesor?: Profesor | string;
 }
 
 export interface MenuAsignaturasProps {
@@ -82,23 +84,23 @@ export default function MenuAsignaturas({
           <li className="text-gray-400">No hay asignaturas asignadas.</li>
         ) : (
           asignaturasSeleccionadas.map((asig) => {
-            // Buscar el nombre del profesor realmente asignado usando asignaturasFull
             let nombreProfesor = "";
-            const asigFull = asignaturasFull.find(a => String(a.id) === String(asig.id));
-            if (asigFull && asigFull.profesorIds && asigFull.profesorIds.length > 0) {
-              const nombres: string[] = [];
-              asigFull.profesorIds.forEach(pid => {
-                const profe = profesores.find(p => p.id === pid);
-                if (profe) nombres.push(profe.nombre);
-              });
-              if (nombres.length > 0) nombreProfesor = nombres.join(", ");
+            if (asig.profesor) {
+              if (typeof asig.profesor === "string" && asig.profesor) {
+                nombreProfesor = asig.profesor;
+              } else if (typeof asig.profesor === "object") {
+                if (asig.profesor.nombre) {
+                  nombreProfesor = asig.profesor.nombre;
+                } else if (typeof asig.profesor.toString === "function") {
+                  nombreProfesor = asig.profesor.toString();
+                }
+              }
             }
+            if (!nombreProfesor) nombreProfesor = "-";
             return (
               <li key={asig.id} className="flex items-center justify-between border-b py-1">
                 <span>{asig.nombre}</span>
-                {nombreProfesor && (
-                  <span className="text-xs text-primary-600 font-semibold ml-2">{nombreProfesor}</span>
-                )}
+                <span className="text-xs text-primary-600 font-semibold ml-2">{nombreProfesor}</span>
                 <button
                   className={`btn-danger px-2 py-1 text-xs ml-2 ${eliminandoId === asig.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                   disabled={eliminandoId === asig.id}
