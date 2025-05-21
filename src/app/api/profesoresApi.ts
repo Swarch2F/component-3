@@ -71,3 +71,15 @@ export async function actualizarProfesor(id: string, nombre?: string, area?: str
 export async function eliminarProfesor(id: string) {
   return graphQLClient.request(ELIMINAR_PROFESOR, { id });
 }
+
+export async function getGradosPorProfesorYAsignatura(profesorId: string, asignatura: string) {
+  const query = `
+    query($profesorId: ID!, $asignatura: String!) {
+      gradosPorProfesorYAsignatura(profesorId: $profesorId, asignatura: $asignatura) {
+        id
+        nombre
+      }
+    }
+  `;
+  return graphQLClient.request(query, { profesorId, asignatura });
+}

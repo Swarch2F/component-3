@@ -3,11 +3,12 @@ import { Student } from "../types/student";
 
 interface Props {
   data: Student[];
+  onGuardar?: (estudiantes: Student[]) => Promise<void> | void;
 }
 
 type SortKey = keyof Pick<Student, "nombre" | "nota" | "grado">;
 
-export default function TableEstudiantes({ data }: Props) {
+export default function TableEstudiantes({ data, onGuardar }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("nombre");
   const [sortAsc, setSortAsc] = useState(true);
   const [selected, setSelected] = useState<Student | null>(null);
@@ -49,9 +50,10 @@ export default function TableEstudiantes({ data }: Props) {
     setEdited(true);
   };
 
-  const handleGuardar = () => {
-    // Aquí podrías hacer una petición a la API para guardar los cambios
-    // Por ahora solo resetea el estado de editado
+  const handleGuardar = async () => {
+    if (onGuardar) {
+      await onGuardar(students);
+    }
     setEdited(false);
     alert("¡Cambios guardados!");
   };
