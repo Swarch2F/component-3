@@ -28,8 +28,10 @@ export default function DocenteDetallePage() {
   const id = params.id as string;
   const [profesor, setProfesor] = useState<any>(null);
   const [asignatura, setAsignatura] = useState<any>(null);
-  const [grados, setGrados] = useState<any[]>([]);
-  const [estudiantesPorGrado, setEstudiantesPorGrado] = useState<Record<number, any[]>>({});
+  const [gradosOriginales, setGradosOriginales] = useState<any[]>([]); // Datos originales de los cursos
+  const [estudiantesOriginales, setEstudiantesOriginales] = useState<Record<number, any[]>>({}); // Datos originales de los estudiantes
+  const [grados, setGrados] = useState<any[]>([]); // Cursos visibles
+  const [estudiantesPorGrado, setEstudiantesPorGrado] = useState<Record<number, any[]>>({}); // Estudiantes visibles
   const [gradoSeleccionado, setGradoSeleccionado] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,9 @@ export default function DocenteDetallePage() {
         // 1. Obtener profesor
         const profRes = await getProfesorPorId(id);
         const prof = (profRes as { profesorPorId: any }).profesorPorId;
+        if (!prof) {
+          throw new Error("Profesor no encontrado");
+        }
         setProfesor(prof);
 
         // 2. Obtener asignatura asignada a este profesor
@@ -58,51 +63,55 @@ export default function DocenteDetallePage() {
         const cursos = await getAllCursos();
         const estudiantes = await getAllEstudiantes();
 
-        // TEMPORALMENTE: Mostrar TODOS los grados para TODOS los docentes sin filtrar
-        let cursosAsignados: any[] = cursos; // Usar todos los cursos sin filtrar
-        
-        // Adicionalmente mantener la lógica de historial para mostrar posible actividad previa del docente
+        // Guardar los datos originales
+        setGradosOriginales(cursos);
+        const estudiantesPorGradoTmp: Record<number, any[]> = {};
+        cursos.forEach((curso: any) => {
+          estudiantesPorGradoTmp[curso.id] = estudiantes.filter((e: any) => e.curso === curso.id);
+        });
+        setEstudiantesOriginales(estudiantesPorGradoTmp);
+
+        // Filtrar los cursos iniciales según el periodo actual
+        await refrescarCursosYEstudiantes(anoSeleccionado, periodo);
+
+        // 4. Obtener todos los cursos donde el profesor ha puesto calificaciones
+        let cursosAsignados: any[] = [];
         if (asignaturaEncontrada) {
-          // También buscar cursos del historial donde el docente ha dictado clases
-          // usando las calificaciones como referencia
           try {
-            // Obtener todas las calificaciones para esta asignatura
+            // Obtener calificaciones para esta asignatura
             const calRes = await getCalificaciones({
               asignaturaId: asignaturaEncontrada.id
             });
-            
             const calificaciones = (calRes as { calificaciones: any[] }).calificaciones || [];
-            if (calificaciones && calificaciones.length > 0) {
-              console.log(`Encontradas ${calificaciones.length} calificaciones históricas para la asignatura`);
-              
-              // Filtrar calificaciones donde este profesor aparezca en las observaciones
-              const calProfesor = calificaciones.filter((cal: any) => 
-                cal.observaciones && cal.observaciones.includes(`Profesor: ${profesor.nombre}`)
-              );
-              
-              console.log(`${calProfesor.length} calificaciones corresponden a este profesor`);
-              
-              // Para fines informativos, seguimos mostrando los cursos históricos en la consola
-              const cursosHistoricos = [...new Set(calProfesor.map((cal: any) => cal.cursoId))];
-              console.log(`Cursos históricos: ${cursosHistoricos.join(', ')}`);
-            }
+            
+            // Filtrar calificaciones donde este profesor aparece en las observaciones
+            const calProfesor = calificaciones.filter((cal: any) => 
+              cal.observaciones && cal.observaciones.includes(`Profesor: ${prof.nombre}`)
+            );
+            
+            // Obtener los IDs únicos de los cursos donde el profesor ha puesto calificaciones
+            const cursosIds = [...new Set(calProfesor.map(cal => cal.cursoId))];
+            
+            // Filtrar los cursos basados en las calificaciones encontradas
+            cursosAsignados = cursos.filter(curso => cursosIds.includes(String(curso.id)));
           } catch (error) {
-            console.error("Error al obtener historial de cursos:", error);
+            console.error("Error al obtener calificaciones:", error);
           }
         }
-        
-        console.log(`Mostrando todos los grados disponibles (${cursosAsignados.length} en total)`);
+
+        console.log(`Mostrando cursos con calificaciones del profesor (${cursosAsignados.length} en total)`);
         setGrados(cursosAsignados);
 
-        // 5. Relacionar estudiantes por grado SOLO para los cursos asignados
-        const porGrado: Record<number, any[]> = {};
+        // 5. Relacionar estudiantes por grado SOLO para los cursos con calificaciones
+        const estudiantesPorGradoAsignados: Record<number, any[]> = {};
         cursosAsignados.forEach((curso: any) => {
-          porGrado[curso.id] = estudiantes.filter((e: any) => e.curso === curso.id);
+          estudiantesPorGradoAsignados[curso.id] = estudiantes.filter((e: any) => e.curso === curso.id);
         });
-        setEstudiantesPorGrado(porGrado);
+        setEstudiantesPorGrado(estudiantesPorGradoAsignados);
 
-      } catch {
-        setError("Error al cargar el docente");
+      } catch (error) {
+        console.error("Error al cargar el docente:", error);
+        setError(typeof error === 'string' ? error : "Error al cargar el docente");
       } finally {
         setLoading(false);
       }
@@ -135,6 +144,34 @@ export default function DocenteDetallePage() {
     });
   }
 
+  async function refrescarCursosYEstudiantes(anoSeleccionado: string, periodo: string) {
+    const periodoCompleto = `${anoSeleccionado}-${periodo}`;
+    console.log(`Refrescando cursos y estudiantes para el periodo: ${periodoCompleto}`);
+
+    try {
+      // Obtener calificaciones para el periodo completo
+      const res = await getCalificaciones({ periodo: periodoCompleto });
+      const calificaciones = (res as { calificaciones: any[] }).calificaciones || [];
+
+      // Filtrar cursos con calificaciones en este periodo
+      const cursosIds = [...new Set(calificaciones.map((cal: any) => cal.cursoId))];
+      const cursosAsignados = gradosOriginales.filter((curso) => cursosIds.includes(String(curso.id)));
+
+      // Relacionar estudiantes por grado SOLO para los cursos con calificaciones
+      const estudiantesPorGradoAsignados: Record<number, any[]> = {};
+      cursosAsignados.forEach((curso: any) => {
+        estudiantesPorGradoAsignados[curso.id] = estudiantesOriginales[curso.id] || [];
+      });
+
+      setGrados(cursosAsignados);
+      setEstudiantesPorGrado(estudiantesPorGradoAsignados);
+    } catch (error) {
+      console.error("Error al refrescar cursos y estudiantes:", error);
+      setGrados([]);
+      setEstudiantesPorGrado({});
+    }
+  }
+
   // Effect to refresh notes when period, year, or grade selection changes
   useEffect(() => {
     if (gradoSeleccionado && asignatura) {
@@ -142,6 +179,11 @@ export default function DocenteDetallePage() {
       refrescarNotas(String(gradoSeleccionado), asignatura.id, anoSeleccionado, periodo);
     }
   }, [gradoSeleccionado, anoSeleccionado, periodo, asignatura]);
+
+  // Effect to refresh courses and students when year or period changes
+  useEffect(() => {
+    refrescarCursosYEstudiantes(anoSeleccionado, periodo);
+  }, [anoSeleccionado, periodo]);
 
   // Obtener periodos únicos con calificaciones para el grado y asignatura seleccionados
   const periodosConCalificaciones = gradoSeleccionado && asignatura
@@ -161,6 +203,15 @@ export default function DocenteDetallePage() {
         return Array.from(periodosSet).sort();
       })()
     : [];
+
+  useEffect(() => {
+    if (feedback && feedback.type === "success") {
+      const timer = setTimeout(() => {
+        setFeedback(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [feedback]);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center"><div className="text-lg">Cargando docente...</div></div>;
@@ -205,6 +256,7 @@ export default function DocenteDetallePage() {
                   setAnoSeleccionado(e.target.value);
                 }}
               >
+                <option value="">Seleccione año</option>
                 {ANOS.map((ano) => (
                   <option key={ano.value} value={ano.value}>
                     {ano.label}
@@ -224,6 +276,7 @@ export default function DocenteDetallePage() {
                   setPeriodo(e.target.value);
                 }}
               >
+                <option value="">Seleccione periodo</option>
                 {PERIODOS.map((p) => (
                   <option key={p.value} value={p.value}>
                     {p.label}
@@ -245,7 +298,7 @@ export default function DocenteDetallePage() {
           {!asignatura ? (
             <div className="mt-2 text-gray-500">No tiene asignatura asignada.</div>
           ) : grados.length === 0 ? (
-            <div className="mt-2 text-gray-500">No tiene grados asignados.</div>
+            <div className="mt-2 text-gray-500">No hay grados asignados para este periodo.</div>
           ) : (
             <ul className="flex flex-col gap-2">
               {grados.map((grado: any) => (

@@ -6,6 +6,7 @@ import { getProfesorPorId } from "../../api/profesoresApi";
 import { getAsignaturas } from "../../api/asignaturasApi";
 import { getAllCursos, getAllEstudiantes } from "../../api/estudiantesCursos.api";
 import TableEstudiantes from "../../components/TableEstudiantes";
+import { getCalificaciones } from "../../api/calificacionesApi";
 
 export default function DocenteDetallePage() {
   const params = useParams();
@@ -25,6 +26,9 @@ export default function DocenteDetallePage() {
         // 1. Obtener profesor
         const profRes = await getProfesorPorId(id);
         const prof = (profRes as { profesorPorId: any }).profesorPorId;
+        if (!prof) {
+          throw new Error("Profesor no encontrado");
+        }
         setProfesor(prof);
 
         // 2. Obtener asignatura asignada a este profesor
@@ -39,22 +43,44 @@ export default function DocenteDetallePage() {
         const cursos = await getAllCursos();
         const estudiantes = await getAllEstudiantes();
 
-        // 4. Relacionar cursos donde el profesor dicta su asignatura
+        // 4. Obtener todos los cursos donde el profesor ha puesto calificaciones
         let cursosAsignados: any[] = [];
         if (asignaturaEncontrada) {
-          cursosAsignados = cursos;
+          try {
+            // Obtener calificaciones para esta asignatura
+            const calRes = await getCalificaciones({
+              asignaturaId: asignaturaEncontrada.id
+            });
+            const calificaciones = (calRes as { calificaciones: any[] }).calificaciones || [];
+            
+            // Filtrar calificaciones donde este profesor aparece en las observaciones
+            const calProfesor = calificaciones.filter((cal: any) => 
+              cal.observaciones && cal.observaciones.includes(`Profesor: ${prof.nombre}`)
+            );
+            
+            // Obtener los IDs únicos de los cursos donde el profesor ha puesto calificaciones
+            const cursosIds = [...new Set(calProfesor.map(cal => cal.cursoId))];
+            
+            // Filtrar los cursos basados en las calificaciones encontradas
+            cursosAsignados = cursos.filter(curso => cursosIds.includes(String(curso.id)));
+          } catch (error) {
+            console.error("Error al obtener calificaciones:", error);
+          }
         }
+
+        console.log(`Mostrando cursos con calificaciones del profesor (${cursosAsignados.length} en total)`);
         setGrados(cursosAsignados);
 
-        // 5. Relacionar estudiantes por grado
+        // 5. Relacionar estudiantes por grado SOLO para los cursos con calificaciones
         const porGrado: Record<number, any[]> = {};
-        cursos.forEach((curso: any) => {
+        cursosAsignados.forEach((curso: any) => {
           porGrado[curso.id] = estudiantes.filter((e: any) => e.curso === curso.id);
         });
         setEstudiantesPorGrado(porGrado);
 
-      } catch {
-        setError("Error al cargar el docente");
+      } catch (error) {
+        console.error("Error al cargar el docente:", error);
+        setError(typeof error === 'string' ? error : "Error al cargar el docente");
       } finally {
         setLoading(false);
       }

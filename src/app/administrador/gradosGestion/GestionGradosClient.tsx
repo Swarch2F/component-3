@@ -24,6 +24,21 @@ interface Grado {
   asignaturas: Asignatura[];
 }
 
+// Años disponibles (desde 2023 hasta el año actual)
+const currentYear = new Date().getFullYear();
+const ANOS = Array.from({ length: currentYear - 2022 }, (_, i) => `${2023 + i}`);
+
+// Periodos disponibles
+const PERIODOS = ["1", "2"];
+
+// Etiquetas descriptivas para los periodos
+const PERIODOS_DESCRIPTIVOS = [
+  { value: "1", label: "Primer Periodo" },
+  { value: "2", label: "Segundo Periodo" },
+  { value: "3", label: "Tercer Periodo" },
+  { value: "4", label: "Cuarto Periodo" },
+];
+
 export default function GestionGradosClient() {
   const [grados, setGrados] = useState<Grado[]>([]);
   const [loadingGrados, setLoadingGrados] = useState(true);
@@ -37,9 +52,9 @@ export default function GestionGradosClient() {
   const [estudiantesPorGrado, setEstudiantesPorGrado] = useState<Record<number | string, EstudianteApi[]>>({});
   const [periodo, setPeriodo] = useState<string>("");
   const [calificaciones, setCalificaciones] = useState<any[]>([]);
-  const [loadingCalificaciones, setLoadingCalificaciones] = useState(false);
-  const [periodoError, setPeriodoError] = useState<string>("");
+  const [loadingCalificaciones, setLoadingCalificaciones] = useState(false);  const [periodoError, setPeriodoError] = useState<string>("");
   const [errorGrado, setErrorGrado] = useState<string>("");
+  const [anoSeleccionado, setAnoSeleccionado] = useState<string>("");
 
   // Opciones de periodo (puedes ajustar según tus periodos reales)
   const periodosDisponibles = [
@@ -239,6 +254,22 @@ export default function GestionGradosClient() {
       asignaturas: Object.values(asignaturasMap)
     } : null);
   };
+  const handleAnoChange = (ano: string) => {
+    setAnoSeleccionado(ano);
+    // Si ya hay un periodo seleccionado, actualiza el periodo completo
+    if (periodo.split("-")[1]) {
+      setPeriodo(`${ano}-${periodo.split("-")[1]}`);
+    }
+  };
+
+  const handlePeriodoChange = (p: string) => {
+    // Si no hay año seleccionado, selecciona el primer año disponible
+    const ano = anoSeleccionado || (ANOS.length > 0 ? ANOS[0] : "2023");
+    if (!anoSeleccionado) {
+      setAnoSeleccionado(ano);
+    }
+    setPeriodo(`${ano}-${p}`);
+  };
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] py-8">
@@ -305,24 +336,43 @@ export default function GestionGradosClient() {
             {gradoSeleccionado ? (
               <div>
                 <h2 className="font-bold text-lg mb-2">Estudiantes de {gradoSeleccionado.nombre}</h2>
-                {/* Selector de periodo */}
-                <div className="mb-4 flex items-center gap-2">
-                  <label className="font-semibold">Periodo:</label>
-                  <input
-                    className="border rounded px-2 py-1"
-                    list="periodos-list"
-                    value={periodo}
-                    onChange={e => {
-                      setPeriodo(e.target.value);
-                      if (e.target.value) setPeriodoError("");
-                    }}
-                    placeholder="Ej: 2025-1"
-                  />
-                  <datalist id="periodos-list">
-                    {periodosConCalificaciones.map(p => (
-                      <option key={p} value={p} />
-                    ))}
-                  </datalist>
+                {/* Selector de año y periodo */}                <div className="mb-4 flex flex-col sm:flex-row sm:items-end gap-4">
+                  <div className="w-full sm:w-1/2">
+                    <label htmlFor="ano-select" className="font-semibold block mb-2 text-gray-700">Año:</label>                    <div className="relative">
+                      <select
+                        id="ano-select"
+                        className="border border-gray-300 rounded-md px-3 py-2 w-full bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
+                        value={anoSeleccionado || ""}
+                        onChange={(e) => handleAnoChange(e.target.value)}
+                      >
+                        <option value="" disabled>Seleccione año</option>
+                        {ANOS.map((ano) => (
+                          <option key={ano} value={ano} className="py-1">{ano}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-full sm:w-1/2">
+                    <label htmlFor="periodo-select" className="font-semibold block mb-2 text-gray-700">Periodo:</label>                    <div className="relative">
+                      <select
+                        id="periodo-select"
+                        className="border border-gray-300 rounded-md px-3 py-2 w-full bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
+                        value={periodo.split("-")[1] || ""}
+                        onChange={(e) => handlePeriodoChange(e.target.value)}
+                      >
+                        <option value="" disabled>Seleccione periodo</option>
+                        {PERIODOS_DESCRIPTIVOS.map((p) => (
+                          <option key={p.value} value={p.value} className="py-1">{p.label}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 {periodoError && (
                   <div className="text-red-500 text-sm mb-2">{periodoError}</div>
@@ -371,11 +421,12 @@ export default function GestionGradosClient() {
                   asignaturasDisponibles={asignaturasDisponibles}
                   profesoresPorAsignatura={profesoresPorAsignatura}
                   onAgregar={async (asig: AsignaturaMenu & { profesor?: any }) => {
-                    if (!periodo) {
-                      setPeriodoError("Debes ingresar o seleccionar un periodo antes de agregar una asignatura.");
+                    if (!gradoSeleccionado) {
+                      setPeriodoError("Debes seleccionar un grado antes de agregar una asignatura.");
                       return;
                     }
                     setPeriodoError("");
+                
                     // Actualizar estado local
                     setGrados(grados.map(g =>
                       g.id === gradoSeleccionado.id
@@ -386,24 +437,31 @@ export default function GestionGradosClient() {
                       ...gradoSeleccionado,
                       asignaturas: [...gradoSeleccionado.asignaturas, { ...asig }],
                     });
-
-                    // Crear calificaciones para cada estudiante del grado y periodo seleccionado
-                    if (!periodo || !asig.id || !asig.profesor || !gradoSeleccionado) return;
+                
+                    // Crear calificaciones para cada estudiante del grado y para los 4 periodos
+                    if (!asig.id || !asig.profesor) return;
                     const estudiantes = estudiantesPorGrado[gradoSeleccionado.id] || [];
                     const cursoId = String(gradoSeleccionado.id);
                     const asignaturaId = String(asig.id);
                     const profesorId = asig.profesor.id;
-                    // Nota inicial: null (se usa 0 porque GraphQL espera Float, y null no es válido)
-                    await Promise.all(estudiantes.map(est =>
-                      registrarCalificacion({
-                        estudianteId: String(est.id),
-                        asignaturaId,
-                        cursoId,
-                        periodo,
-                        nota: 0, // o null si la API lo permite
-                        observaciones: `Profesor: ${asig.profesor.nombre} (${profesorId})`
-                      })
-                    ));
+                
+                    // Registrar calificaciones para todos los periodos
+                    const periodos = ["2025-1", "2025-2", "2026-1", "2026-2"];
+                    await Promise.all(
+                      periodos.flatMap((periodo) =>
+                        estudiantes.map((est) =>
+                          registrarCalificacion({
+                            estudianteId: String(est.id),
+                            asignaturaId,
+                            cursoId,
+                            periodo,
+                            nota: 0, // Nota inicial
+                            observaciones: `Profesor: ${asig.profesor.nombre} (${profesorId})`,
+                          })
+                        )
+                      )
+                    );
+                
                     // Refrescar calificaciones
                     const res = await getCalificaciones({ cursoId, periodo });
                     setCalificaciones((res as any).calificaciones || []);

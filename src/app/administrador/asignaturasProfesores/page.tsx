@@ -161,6 +161,18 @@ export default function GestionAsignaturasProfesores() {
 
   const cancelarEliminar = () => setShowConfirm(null);
 
+  // Función para ordenar por nombre
+  const ordenarPorNombre = () => {
+    const profesoresOrdenados = [...profesores].sort((a, b) => a.nombre.localeCompare(b.nombre));
+    setProfesores(profesoresOrdenados);
+  };
+
+  // Función para manejar el botón "Ver más"
+  const verCursos = (id: string) => {
+    console.log(`Accediendo a los cursos del profesor con ID: ${id}`);
+    // Aquí puedes redirigir o realizar alguna acción específica
+  };
+
   return (
     <div className="min-h-screen bg-[var(--color-bg)] py-8 flex flex-col items-center">
       {/* Modal de confirmación */}
@@ -186,7 +198,7 @@ export default function GestionAsignaturasProfesores() {
         <table className="min-w-full border text-sm mb-4">
           <thead>
             <tr>
-              <th className="px-2 py-1 border">Nombre</th>
+              <th className="px-2 py-1 border cursor-pointer" onClick={() => ordenarPorNombre()}>Nombre</th>
               <th className="px-2 py-1 border">N. Documento</th>
               <th className="px-2 py-1 border">Asignatura</th>
               <th className="px-2 py-1 border">Acciones</th>
@@ -209,13 +221,14 @@ export default function GestionAsignaturasProfesores() {
                   <td className="px-2 py-1 border">
                     {asignaturas.find(a => a.profesorIds && a.profesorIds.includes(prof.id))?.nombre || "Sin asignar"}
                   </td>
-                  <td className="px-2 py-1 border text-center">
+                  <td className="px-2 py-1 border text-center flex justify-center gap-2">
                     {editandoId === prof.id ? (
-                      <button className="btn-primary px-2 py-1 text-xs mr-2" onClick={() => guardarEdicion(editandoId)}>Guardar</button>
+                      <button className="btn-primary px-2 py-1 text-xs" onClick={() => guardarEdicion(editandoId)}>Guardar</button>
                     ) : (
-                      <button className="btn-secondary px-2 py-1 text-xs mr-2" onClick={() => iniciarEdicion(prof)}>Editar</button>
+                      <button className="btn-secondary px-2 py-1 text-xs" onClick={() => iniciarEdicion(prof)}>Editar</button>
                     )}
                     <button className="btn-danger px-2 py-1 text-xs" onClick={() => eliminarProfesor(prof.id)}>Eliminar</button>
+                    <button className="btn-primary px-2 py-1 text-xs" onClick={() => verCursos(prof.id)}>Ver más</button>
                   </td>
                 </tr>
               ))
