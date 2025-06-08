@@ -1,7 +1,7 @@
 import { GraphQLClient } from 'graphql-request';
 
 // Cambia esta URL por la de tu backend GraphQL
-const endpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:8080/graphql';
+const endpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:9000/graphql';
 
 export const graphQLClient = new GraphQLClient(endpoint, {
   headers: {

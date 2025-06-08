@@ -76,11 +76,17 @@ export default function GestionAsignaturasProfesores() {
       alert("El número de documento debe tener máximo 15 caracteres, sin espacios ni puntos.");
       return;
     }
+    if (!nuevoProfesor.documento.trim()) {
+      alert("El campo N. Documento es obligatorio.");
+      return;
+    }
     if (!nuevoProfesor.asignaturaId) {
       alert("Debe seleccionar una asignatura.");
       return;
     }
-    const res = (await crearProfesor(nuevoProfesor.nombre, nuevoProfesor.documento, "")) as { crearProfesor: Profesor };
+    // Usar 'General' como área por defecto
+    const area = "General";
+    const res = (await crearProfesor(nuevoProfesor.nombre, nuevoProfesor.documento, area)) as { crearProfesor: Profesor };
     await import("../../api/asignaturasApi").then(api =>
       api.asignarProfesorAAsignatura(res.crearProfesor.id, nuevoProfesor.asignaturaId)
     );
@@ -96,8 +102,14 @@ export default function GestionAsignaturasProfesores() {
 
   // Editar profesor
   const iniciarEdicion = (prof: Profesor) => {
+    // Buscar la asignatura actual del profesor
+    const asignaturaActual = asignaturas.find(a => a.profesorIds && a.profesorIds.includes(prof.id));
     setEditandoId(prof.id);
-    setEditando({ nombre: prof.nombre, documento: prof.documento, asignaturaId: prof.asignatura?.id || "" });
+    setEditando({
+      nombre: prof.nombre,
+      documento: prof.documento,
+      asignaturaId: asignaturaActual?.id || ""
+    });
   };
   const guardarEdicion = async (id: string) => {
     await actualizarProfesor(id, editando.nombre);
@@ -216,19 +228,59 @@ export default function GestionAsignaturasProfesores() {
                     ) : prof.nombre}
                   </td>
                   <td className="px-2 py-1 border">
-                    {prof.documento}
+                    {editandoId === prof.id ? (
+                      // No editable en edición
+                      <span className="text-gray-400 italic">{prof.documento}</span>
+                    ) : prof.documento}
                   </td>
                   <td className="px-2 py-1 border">
-                    {asignaturas.find(a => a.profesorIds && a.profesorIds.includes(prof.id))?.nombre || "Sin asignar"}
+                    {editandoId === prof.id ? (
+                      <select
+                        value={editando.asignaturaId}
+                        onChange={e => setEditando({ ...editando, asignaturaId: e.target.value })}
+                        className="input-modern w-full"
+                      >
+                        {asignaturas.map(a => (
+                          <option key={a.id} value={a.id}>{a.nombre}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      asignaturas.find(a => a.profesorIds && a.profesorIds.includes(prof.id))?.nombre || "Sin asignar"
+                    )}
                   </td>
                   <td className="px-2 py-1 border text-center flex justify-center gap-2">
                     {editandoId === prof.id ? (
-                      <button className="btn-primary px-2 py-1 text-xs" onClick={() => guardarEdicion(editandoId)}>Guardar</button>
+                      <button className="btn-primary px-2 py-1 text-xs" onClick={async () => {
+                        // Guardar edición de profesor: solo nombre y asignatura
+                        await actualizarProfesor(editandoId, editando.nombre);
+                        // Actualizar asignatura si cambió
+                        const asignaturaActual = asignaturas.find(a => a.profesorIds && a.profesorIds.includes(prof.id));
+                        if (editando.asignaturaId !== (asignaturaActual?.id || "")) {
+                          if (asignaturaActual) {
+                            await import("../../api/asignaturasApi").then(api =>
+                              api.desasignarProfesorDeAsignatura(editandoId, asignaturaActual.id)
+                            );
+                          }
+                          if (editando.asignaturaId) {
+                            await import("../../api/asignaturasApi").then(api =>
+                              api.asignarProfesorAAsignatura(editandoId, editando.asignaturaId)
+                            );
+                          }
+                        }
+                        // Refrescar datos
+                        const [profRes, asigRes] = await Promise.all([
+                          getProfesores(),
+                          getAsignaturas()
+                        ]);
+                        setProfesores((profRes as GetProfesoresResponse).profesores);
+                        setAsignaturas((asigRes as GetAsignaturasResponse).asignaturas);
+                        setEditandoId(null);
+                        setEditando({ nombre: "", documento: "", asignaturaId: "" });
+                      }}>Guardar</button>
                     ) : (
                       <button className="btn-secondary px-2 py-1 text-xs" onClick={() => iniciarEdicion(prof)}>Editar</button>
                     )}
                     <button className="btn-danger px-2 py-1 text-xs" onClick={() => eliminarProfesor(prof.id)}>Eliminar</button>
-                    <button className="btn-primary px-2 py-1 text-xs" onClick={() => verCursos(prof.id)}>Ver más</button>
                   </td>
                 </tr>
               ))
