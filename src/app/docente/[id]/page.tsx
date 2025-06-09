@@ -315,6 +315,14 @@ export default function DocenteDetallePage() {
                 }
                 onGuardar={async (estudiantesEditados) => {
                   setFeedback(null);
+                  // Validación: solo permitir enteros positivos desde 0
+                  const invalid = estudiantesEditados.find(est =>
+                    est.nota !== undefined && (!Number.isInteger(est.nota) || est.nota < 0)
+                  );
+                  if (invalid) {
+                    setFeedback({ type: "error", message: "Solo se permiten calificaciones enteras positivas (0 o mayor)." });
+                    return;
+                  }
                   try {
                     // 1. Obtener las calificaciones actuales de este grado, asignatura y periodo
                     // Formar el periodo completo (año + periodo)

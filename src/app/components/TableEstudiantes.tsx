@@ -22,6 +22,7 @@ export default function TableEstudiantes({ data, onGuardar }: Props) {
 
   // Para detectar cambios y habilitar el botón de guardar
   const [edited, setEdited] = useState(false);
+  const [inputErrors, setInputErrors] = useState<{ [id: string]: string }>({});
 
   const sorted = [...students].sort((a, b) => {
     if (sortKey === "nota") {
@@ -43,10 +44,21 @@ export default function TableEstudiantes({ data, onGuardar }: Props) {
   };
 
   const handleNotaChange = (id: string, value: string) => {
-    const nota = value === "" ? undefined : Number(value);
-    setStudents((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, nota } : s))
-    );
+    // Permitir solo enteros positivos entre 0 y 10
+    let error = "";
+    let nota: number | undefined = undefined;
+    if (value === "") {
+      nota = undefined;
+    } else {
+      const num = Number(value);
+      if (!/^\d+$/.test(value) || num < 0 || num > 10) {
+        error = "Solo enteros de 0 a 10";
+      } else {
+        nota = num;
+      }
+    }
+    setInputErrors((prev) => ({ ...prev, [id]: error }));
+    setStudents((prev) => prev.map((s) => (s.id === id ? { ...s, nota } : s)));
     setEdited(true);
   };
 
@@ -98,21 +110,27 @@ export default function TableEstudiantes({ data, onGuardar }: Props) {
                 <input
                   type="number"
                   min={0}
-                  max={5}
-                  step={0.1}
+                  max={10}
+                  step={1}
                   value={s.nota ?? ""}
                   onChange={(e) => {
                     let value = e.target.value;
-                    // Limitar el valor entre 0 y 5
+                    // Limitar el valor entre 0 y 10 y solo enteros
                     if (value !== "") {
+                      if (!/^\d+$/.test(value)) value = value.replace(/\D/g, "");
                       let num = Number(value);
                       if (num < 0) value = "0";
-                      if (num > 5) value = "5";
+                      if (num > 10) value = "10";
                     }
                     handleNotaChange(s.id, value);
                   }}
-                  className="border rounded px-2 py-1 w-20 text-right"
+                  className={`border rounded px-2 py-1 w-20 text-right ${inputErrors[s.id] ? "border-red-500" : ""}`}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                 />
+                {inputErrors[s.id] && (
+                  <div className="text-xs text-red-500 mt-1">{inputErrors[s.id]}</div>
+                )}
               </td>
               <td className="px-4 py-2">
                 <button
