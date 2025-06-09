@@ -1,107 +1,152 @@
+import { graphQLClient } from "./graphqlClient";
+
 const API_URL = process.env.NEXT_PUBLIC_SIA_API_URL || "http://localhost:8000/api";
 
 // Tipos para cursos y estudiantes
 export interface Curso {
-  id?: number;
+  id?: string;
   nombre: string;
   codigo: string;
 }
 
 export interface Estudiante {
-  id?: number;
-  nombre_completo: string;
+  id?: string;
+  nombreCompleto: string;
   documento: string;
-  fecha_nacimiento: string;
+  fechaNacimiento: string;
   acudiente: string;
-  curso: number;
+  curso: string | Curso;
 }
 
-export async function getCursos(params: string = "") {
-  const res = await fetch(`${API_URL}/cursos/${params}`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Error al obtener cursos");
-  return res.json();
+// --- GraphQL Queries & Mutations ---
+const QUERY_LISTAR_CURSOS = `
+  query($search: String, $ordering: String, $page: Int) {
+    cursos(search: $search, ordering: $ordering, page: $page) {
+      results { id nombre codigo estudiantes { id nombreCompleto documento } }
+    }
+  }
+`;
+
+const QUERY_LISTAR_ESTUDIANTES = `
+  query($search: String, $ordering: String, $page: Int) {
+    estudiantes(search: $search, ordering: $ordering, page: $page) {
+      count
+      next
+      previous
+      results { id nombreCompleto documento fechaNacimiento acudiente curso { id nombre codigo } }
+    }
+  }
+`;
+
+const MUTATION_CREAR_ESTUDIANTE = `
+  mutation($input: CrearEstudianteInput!) {
+    crearEstudiante(input: $input) {
+      id nombreCompleto documento fechaNacimiento acudiente curso { id nombre codigo }
+    }
+  }
+`;
+
+const MUTATION_ACTUALIZAR_ESTUDIANTE = `
+  mutation($id: ID!, $input: ActualizarEstudianteInput!) {
+    actualizarEstudiante(id: $id, input: $input) {
+      id nombreCompleto documento fechaNacimiento acudiente curso { id nombre codigo }
+    }
+  }
+`;
+
+const MUTATION_ELIMINAR_ESTUDIANTE = `
+  mutation($id: ID!) {
+    eliminarEstudiante(id: $id)
+  }
+`;
+
+// --- Funciones GraphQL ---
+export async function getAllCursos() {
+  const res = await graphQLClient.request(QUERY_LISTAR_CURSOS, { search: "", ordering: "nombre", page: 1 }) as { cursos: { results: Curso[] } };
+  return res.cursos.results;
 }
 
-export async function createCurso(data: Curso) {
-  const res = await fetch(`${API_URL}/cursos/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Error al crear curso");
-  return res.json();
-}
-
-export async function updateCurso(id: number, data: Partial<Curso>, method: "PATCH" | "PUT" = "PATCH") {
-  const res = await fetch(`${API_URL}/cursos/${id}/`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Error al actualizar curso");
-  return res.json();
-}
-
-export async function deleteCurso(id: number) {
-  const res = await fetch(`${API_URL}/cursos/${id}/`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Error al eliminar curso");
-  return true;
-}
-
-export async function getEstudiantes(params: string = "") {
-  const res = await fetch(`${API_URL}/estudiantes/${params}`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Error al obtener estudiantes");
-  return res.json();
+export async function getAllEstudiantes({ search = "", ordering = "nombreCompleto", page = 1 } = {}) {
+  const res = await graphQLClient.request(QUERY_LISTAR_ESTUDIANTES, { search, ordering, page }) as { estudiantes: { results: any[], count: number, next?: number, previous?: number } };
+  return res.estudiantes;
 }
 
 export async function createEstudiante(data: Estudiante) {
-  const res = await fetch(`${API_URL}/estudiantes/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Error al crear estudiante");
-  return res.json();
+  const input = {
+    nombreCompleto: data.nombreCompleto,
+    documento: data.documento,
+    fechaNacimiento: data.fechaNacimiento,
+    acudiente: data.acudiente,
+    curso: typeof data.curso === "object" ? data.curso.id : data.curso
+  };
+  // Construir el input como string de campos
+  const inputFields = [
+    input.nombreCompleto !== undefined ? `nombreCompleto: \"${input.nombreCompleto.replace(/"/g, '\\"')}\"` : null,
+    input.documento !== undefined ? `documento: \"${input.documento.replace(/"/g, '\\"')}\"` : null,
+    input.fechaNacimiento !== undefined ? `fechaNacimiento: \"${input.fechaNacimiento}\"` : null,
+    input.acudiente !== undefined ? `acudiente: \"${input.acudiente.replace(/"/g, '\\"')}\"` : null,
+    input.curso !== undefined ? `curso: \"${input.curso}\"` : null
+  ].filter(Boolean).join("\n          ");
+
+  const mutation = `
+    mutation {
+      crearEstudiante(
+        input: {
+          ${inputFields}
+        }
+      ) {
+        id
+        nombreCompleto
+        documento
+        fechaNacimiento
+        acudiente
+        curso { id nombre codigo }
+      }
+    }
+  `;
+  return graphQLClient.request(mutation);
 }
 
-export async function updateEstudiante(id: number, data: Partial<Estudiante>, method: "PATCH" | "PUT" = "PATCH") {
-  const res = await fetch(`${API_URL}/estudiantes/${id}/`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Error al actualizar estudiante");
-  return res.json();
-}
-
-export async function deleteEstudiante(id: number) {
-  const res = await fetch(`${API_URL}/estudiantes/${id}/`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Error al eliminar estudiante");
-  return true;
-}
-
-export async function getAllCursos() {
-  let url = `${API_URL}/cursos/`;
-  let all: Curso[] = [];
-  while (url) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("Error al obtener cursos");
-    const data = await res.json();
-    all = all.concat(data.results || []);
-    url = data.next;
+export async function updateEstudiante(id: string, data: Partial<Estudiante>) {
+  // Solo incluir campos definidos y válidos
+  const input: any = {};
+  if (typeof data.nombreCompleto === "string") input.nombreCompleto = data.nombreCompleto;
+  if (typeof data.documento === "string") input.documento = data.documento;
+  if (typeof data.fechaNacimiento === "string") input.fechaNacimiento = data.fechaNacimiento;
+  if (typeof data.acudiente === "string") input.acudiente = data.acudiente;
+  if (data.curso) {
+    let cursoId = typeof data.curso === "object" ? data.curso.id : data.curso;
+    input.curso = String(cursoId);
   }
-  return all;
+  // Construir el input como string de campos
+  const inputFields = [
+    input.nombreCompleto !== undefined ? `nombreCompleto: \"${input.nombreCompleto.replace(/"/g, '\\"')}\"` : null,
+    input.documento !== undefined ? `documento: \"${input.documento.replace(/"/g, '\\"')}\"` : null,
+    input.fechaNacimiento !== undefined ? `fechaNacimiento: \"${input.fechaNacimiento}\"` : null,
+    input.acudiente !== undefined ? `acudiente: \"${input.acudiente.replace(/"/g, '\\"')}\"` : null,
+    input.curso !== undefined ? `curso: \"${input.curso}\"` : null
+  ].filter(Boolean).join("\n          ");
+
+  const mutation = `
+    mutation {
+      actualizarEstudiante(
+        id: \"${id}\",
+        input: {
+          ${inputFields}
+        }
+      ) {
+        id
+        nombreCompleto
+        documento
+        fechaNacimiento
+        acudiente
+        curso { id nombre codigo }
+      }
+    }
+  `;
+  return graphQLClient.request(mutation);
 }
 
-export async function getAllEstudiantes() {
-  let url = `${API_URL}/estudiantes/`;
-  let all: Estudiante[] = [];
-  while (url) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("Error al obtener estudiantes");
-    const data = await res.json();
-    all = all.concat(data.results || []);
-    url = data.next;
-  }
-  return all;
+export async function deleteEstudiante(id: string) {
+  return graphQLClient.request(MUTATION_ELIMINAR_ESTUDIANTE, { id });
 }

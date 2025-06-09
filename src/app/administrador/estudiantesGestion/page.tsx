@@ -23,87 +23,97 @@ export default function EstudiantesGestionPage() {
   const [editStudent, setEditStudent] = useState<Student | null>(null);
   const [newStudent, setNewStudent] = useState({ nombre: "", documento: "", nacimiento: "", acudiente: "", grado: "" });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string; nombre: string } | null>(null);
+  const [search, setSearch] = useState("");
 
-  // Paginación local
-  const PAGE_SIZE = 10;
+  // Paginación remota (sin búsqueda)
+  const PAGE_SIZE = 15;
   const [page, setPage] = useState(1);
-  const totalPages = Math.ceil(students.length / PAGE_SIZE);
-  const paginated = students.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const [totalEstudiantes, setTotalEstudiantes] = useState(0);
+  // Eliminar totalPages
+
+  // Filtrado frontend por nombre
+  const filteredStudents = search.trim().length > 0
+    ? students.filter(s => s.nombre.toLowerCase().includes(search.trim().toLowerCase()))
+    : students;
+
+  // --- NUEVO: función reutilizable para traer todos los estudiantes ---
+  const fetchAllEstudiantes = async () => {
+    setLoading(true);
+    try {
+      const cursosList: Curso[] = await getAllCursos();
+      setCursos(cursosList);
+      let allEstudiantes: any[] = [];
+      let currentPage = 1;
+      let keepFetching = true;
+      while (keepFetching) {
+        const res: any = await getAllEstudiantes({ page: currentPage });
+        const estudiantesData = res.estudiantes || res;
+        const estudiantesList = estudiantesData.results || [];
+        allEstudiantes = allEstudiantes.concat(estudiantesList);
+        // Si 'next' es null, no hay más páginas
+        if (!estudiantesData.next) {
+          keepFetching = false;
+        } else {
+          currentPage++;
+        }
+      }
+      setTotalEstudiantes(allEstudiantes.length);
+      setStudents(
+        allEstudiantes.map((e: any) => {
+          let grado = "";
+          if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
+            grado = (e.curso as { nombre: string }).nombre;
+          } else {
+            const cursoObj = cursosList.find((c) => c.id === e.curso);
+            grado = cursoObj?.nombre || "";
+          }
+          return {
+            id: String(e.id),
+            nombre: e.nombreCompleto,
+            documento: e.documento,
+            nacimiento: e.fechaNacimiento,
+            acudiente: e.acudiente,
+            grado
+          };
+        })
+      );
+    } catch (err) {
+      setError("Error cargando los datos de estudiantes");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const cursosList: Curso[] = await getAllCursos();
-        setCursos(cursosList);
-        const estudiantesList: Estudiante[] = await getAllEstudiantes();
-        setStudents(
-          estudiantesList.map((e: Estudiante) => {
-            let grado = "";
-            if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
-              grado = (e.curso as { nombre: string }).nombre;
-            } else {
-              const cursoObj = cursosList.find((c) => c.id === e.curso);
-              grado = cursoObj?.nombre || "";
-            }
-            return {
-              id: String(e.id),
-              nombre: e.nombre_completo,
-              documento: e.documento,
-              nacimiento: e.fecha_nacimiento,
-              acudiente: e.acudiente,
-              grado
-            };
-          })
-        );
-      } catch (err) {
-        setError("Error cargando los datos de estudiantes");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+    fetchAllEstudiantes();
+  }, []); // Solo al montar
 
   const handleEdit = (student: Student) => {
-    setEditStudent(student);
+    // Buscar el id del curso por el nombre
+    const cursoObj = cursos.find(c => c.nombre === student.grado);
+    setEditStudent({ ...student, grado: cursoObj?.id ?? "" });
     setShowEditModal(true);
   };
 
   const handleEditSave = async () => {
     if (!editStudent) return;
-    const cursoObj = cursos.find(c => c.nombre === editStudent.grado);
-    if (!cursoObj) return alert("Grado inválido");
-    await updateEstudiante(Number(editStudent.id), {
-      nombre_completo: editStudent.nombre,
+    // Buscar el curso por id (ahora grado almacena el id)
+    const cursoObj = cursos.find(c => c.id === editStudent.grado);
+    if (!cursoObj) {
+      alert("Grado inválido. El curso seleccionado no existe.");
+      return;
+    }
+    await updateEstudiante(editStudent.id, {
+      nombreCompleto: editStudent.nombre,
       documento: editStudent.documento,
-      fecha_nacimiento: editStudent.nacimiento,
+      fechaNacimiento: editStudent.nacimiento,
       acudiente: editStudent.acudiente,
-      curso: cursoObj.id!
+      curso: cursoObj.id
     });
     setShowEditModal(false);
     setEditStudent(null);
-    // Refrescar
-    const estudiantesList: Estudiante[] = await getAllEstudiantes();
-    setStudents(
-      estudiantesList.map((e: Estudiante) => {
-        let grado = "";
-        if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
-          grado = (e.curso as { nombre: string }).nombre;
-        } else {
-          const cursoObj = cursos.find((c) => c.id === e.curso);
-          grado = cursoObj?.nombre || "";
-        }
-        return {
-          id: String(e.id),
-          nombre: e.nombre_completo,
-          documento: e.documento,
-          nacimiento: e.fecha_nacimiento,
-          acudiente: e.acudiente,
-          grado
-        };
-      })
-    );
+    // Refrescar todos los estudiantes
+    await fetchAllEstudiantes();
   };
 
   const handleDelete = (id: string) => {
@@ -114,29 +124,10 @@ export default function EstudiantesGestionPage() {
 
   const confirmarEliminar = async () => {
     if (!showDeleteConfirm) return;
-    await deleteEstudiante(Number(showDeleteConfirm.id));
+    await deleteEstudiante(showDeleteConfirm.id);
     setShowDeleteConfirm(null);
-    // Refrescar
-    const estudiantesList: Estudiante[] = await getAllEstudiantes();
-    setStudents(
-      estudiantesList.map((e: Estudiante) => {
-        let grado = "";
-        if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
-          grado = (e.curso as { nombre: string }).nombre;
-        } else {
-          const cursoObj = cursos.find((c) => c.id === e.curso);
-          grado = cursoObj?.nombre || "";
-        }
-        return {
-          id: String(e.id),
-          nombre: e.nombre_completo,
-          documento: e.documento,
-          nacimiento: e.fecha_nacimiento,
-          acudiente: e.acudiente,
-          grado
-        };
-      })
-    );
+    // Refrescar todos los estudiantes
+    await fetchAllEstudiantes();
   };
 
   const cancelarEliminar = () => setShowDeleteConfirm(null);
@@ -146,35 +137,16 @@ export default function EstudiantesGestionPage() {
     const cursoObj = cursos.find(c => c.nombre === newStudent.grado);
     if (!cursoObj) return alert("Grado inválido");
     await createEstudiante({
-      nombre_completo: newStudent.nombre,
+      nombreCompleto: newStudent.nombre,
       documento: newStudent.documento,
-      fecha_nacimiento: newStudent.nacimiento,
+      fechaNacimiento: newStudent.nacimiento,
       acudiente: newStudent.acudiente,
       curso: cursoObj.id!
     });
     setShowAddModal(false);
     setNewStudent({ nombre: "", documento: "", nacimiento: "", acudiente: "", grado: "" });
-    // Refrescar
-    const estudiantesList: Estudiante[] = await getAllEstudiantes();
-    setStudents(
-      estudiantesList.map((e: Estudiante) => {
-        let grado = "";
-        if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
-          grado = (e.curso as { nombre: string }).nombre;
-        } else {
-          const cursoObj = cursos.find((c) => c.id === e.curso);
-          grado = cursoObj?.nombre || "";
-        }
-        return {
-          id: String(e.id),
-          nombre: e.nombre_completo,
-          documento: e.documento,
-          nacimiento: e.fecha_nacimiento,
-          acudiente: e.acudiente,
-          grado
-        };
-      })
-    );
+    // Refrescar todos los estudiantes
+    await fetchAllEstudiantes();
   };
 
   return (
@@ -189,9 +161,18 @@ export default function EstudiantesGestionPage() {
               <h1 className="text-3xl font-extrabold mb-1 title-modern">Estudiantes</h1>
               <p className="subtitle-modern text-base">Administra estudiantes: agregar, editar, eliminar.</p>
             </div>
-            <button className="btn-primary px-5 py-2 text-base" onClick={() => setShowAddModal(true)}>
-              Añadir Estudiante
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="text"
+                placeholder="Buscar por nombre..."
+                className="border rounded px-3 py-2 w-full sm:w-64"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              <button className="btn-primary px-5 py-2 text-base" onClick={() => setShowAddModal(true)}>
+                Añadir Estudiante
+              </button>
+            </div>
           </div>
           <DataContainer loading={loading} error={error} onRetry={() => window.location.reload()}>
             <div className="card-modern p-0 w-full" style={{ overflowX: 'auto' }}>
@@ -207,7 +188,7 @@ export default function EstudiantesGestionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map((estudiante) => (
+                  {filteredStudents.map((estudiante) => (
                     <tr key={estudiante.id} className="hover:bg-[var(--color-gray)] transition">
                       <td className="px-6 py-4 whitespace-nowrap text-base font-medium">{estudiante.nombre}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-base">{estudiante.documento}</td>
@@ -223,30 +204,7 @@ export default function EstudiantesGestionPage() {
                 </tbody>
               </table>
               {/* Controles de paginación */}
-              <div className="flex flex-wrap items-center justify-between mt-4 gap-2">
-                <div className="text-sm text-gray-600">
-                  Mostrando {paginated.length} de {students.length} estudiantes
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    className="btn-secondary px-3 py-1 rounded"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                  >
-                    Anterior
-                  </button>
-                  <span className="px-2 py-1 text-sm">
-                    Página {page} de {totalPages}
-                  </span>
-                  <button
-                    className="btn-secondary px-3 py-1 rounded"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                  >
-                    Siguiente
-                  </button>
-                </div>
-              </div>
+              {/* Eliminados porque ahora se muestran todos los estudiantes */}
             </div>
           </DataContainer>
         </div>
@@ -314,22 +272,17 @@ export default function EstudiantesGestionPage() {
         <div className="fixed inset-0 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 shadow-lg w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">Editar Estudiante</h2>
-            <input
-              type="text"
-              placeholder="Grado"
-              className="border rounded px-3 py-2 w-full mb-3"
-              value={editStudent.grado}
-              onChange={e => setEditStudent(s => s ? { ...s, grado: e.target.value } : s)}
-              style={{ display: "none" }}
-            />
+            {/* Menú desplegable solo con cursos válidos */}
             <select
               className="border rounded px-3 py-2 w-full mb-3"
               value={editStudent.grado}
-              onChange={e => setEditStudent(s => s ? { ...s, grado: e.target.value } : s)}
+              onChange={e => {
+                setEditStudent(s => s ? { ...s, grado: e.target.value } : s);
+              }}
             >
               <option value="">Selecciona un grado</option>
               {cursos.map(curso => (
-                <option key={curso.id} value={curso.nombre}>{curso.nombre}</option>
+                <option key={curso.id} value={curso.id}>{curso.nombre}</option>
               ))}
             </select>
             <input
