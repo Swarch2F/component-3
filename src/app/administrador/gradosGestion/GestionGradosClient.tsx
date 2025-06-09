@@ -28,10 +28,7 @@ interface Grado {
 const currentYear = new Date().getFullYear();
 const ANOS = Array.from({ length: currentYear - 2022 }, (_, i) => `${2023 + i}`);
 
-// Periodos disponibles
-const PERIODOS = ["1", "2"];
-
-// Etiquetas descriptivas para los periodos
+// Periodos disponibles (solo uno a la vez, simplificado)
 const PERIODOS_DESCRIPTIVOS = [
   { value: "1", label: "Primer Periodo" },
   { value: "2", label: "Segundo Periodo" },
@@ -56,13 +53,13 @@ export default function GestionGradosClient() {
   const [errorGrado, setErrorGrado] = useState<string>("");
   const [anoSeleccionado, setAnoSeleccionado] = useState<string>("");
 
-  // Opciones de periodo (puedes ajustar según tus periodos reales)
-  const periodosDisponibles = [
-    "2025-1",
-    "2025-2",
-    "2026-1",
-    "2026-2"
-  ];
+  // Opciones de periodo (ahora simplificadas: año-periodo)
+  const periodosDisponibles = [];
+  for (const ano of ANOS) {
+    for (const p of PERIODOS_DESCRIPTIVOS) {
+      periodosDisponibles.push(`${ano}-${p.value}`);
+    }
+  }
 
   useEffect(() => {
     async function fetchGradosYEstudiantes() {
@@ -339,36 +336,20 @@ export default function GestionGradosClient() {
             {gradoSeleccionado ? (
               <div>
                 <h2 className="font-bold text-lg mb-2">Estudiantes de {gradoSeleccionado.nombre}</h2>
-                {/* Selector de año y periodo */}                <div className="mb-4 flex flex-col sm:flex-row sm:items-end gap-4">
-                  <div className="w-full sm:w-1/2">
-                    <label htmlFor="ano-select" className="font-semibold block mb-2 text-gray-700">Año:</label>                    <div className="relative">
-                      <select
-                        id="ano-select"
-                        className="border border-gray-300 rounded-md px-3 py-2 w-full bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
-                        value={anoSeleccionado || ""}
-                        onChange={(e) => handleAnoChange(e.target.value)}
-                      >
-                        <option value="" disabled>Seleccione año</option>
-                        {ANOS.map((ano) => (
-                          <option key={ano} value={ano} className="py-1">{ano}</option>
-                        ))}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="w-full sm:w-1/2">
-                    <label htmlFor="periodo-select" className="font-semibold block mb-2 text-gray-700">Periodo:</label>                    <div className="relative">
+                {/* Selector de periodo simplificado */}
+                <div className="mb-4 flex flex-col sm:flex-row sm:items-end gap-4">
+                  <div className="w-full">
+                    <label htmlFor="periodo-select" className="font-semibold block mb-2 text-gray-700">Periodo:</label>
+                    <div className="relative">
                       <select
                         id="periodo-select"
                         className="border border-gray-300 rounded-md px-3 py-2 w-full bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
-                        value={periodo.split("-")[1] || ""}
-                        onChange={(e) => handlePeriodoChange(e.target.value)}
+                        value={periodo}
+                        onChange={e => setPeriodo(e.target.value)}
                       >
                         <option value="" disabled>Seleccione periodo</option>
-                        {PERIODOS_DESCRIPTIVOS.map((p) => (
-                          <option key={p.value} value={p.value} className="py-1">{p.label}</option>
+                        {periodosDisponibles.map((p) => (
+                          <option key={p} value={p} className="py-1">{p}</option>
                         ))}
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
@@ -428,8 +409,12 @@ export default function GestionGradosClient() {
                       setPeriodoError("Debes seleccionar un grado antes de agregar una asignatura.");
                       return;
                     }
+                    if (!periodo) {
+                      setPeriodoError("Debes seleccionar un periodo antes de agregar una asignatura.");
+                      return;
+                    }
                     setPeriodoError("");
-                
+
                     // Actualizar estado local
                     setGrados(grados.map(g =>
                       g.id === gradoSeleccionado.id
@@ -440,34 +425,47 @@ export default function GestionGradosClient() {
                       ...gradoSeleccionado,
                       asignaturas: [...gradoSeleccionado.asignaturas, { ...asig }],
                     });
-                
-                    // Crear calificaciones para cada estudiante del grado y para los 4 periodos
+
+                    // Crear calificaciones solo para el periodo seleccionado
                     if (!asig.id || !asig.profesor) return;
                     const estudiantes = estudiantesPorGrado[gradoSeleccionado.id] || [];
                     const cursoId = String(gradoSeleccionado.id);
                     const asignaturaId = String(asig.id);
                     const profesorId = asig.profesor.id;
-                
-                    // Registrar calificaciones para todos los periodos
-                    const periodos = ["2025-1", "2025-2", "2026-1", "2026-2"];
+
+                    // Obtener calificaciones existentes para este periodo
+                    let existentes: any[] = [];
+                    try {
+                      const res = await getCalificaciones({ cursoId, asignaturaId, periodo });
+                      existentes = (res as any).calificaciones || [];
+                    } catch {}
+
+                    // Crear solo las calificaciones que no existen para este periodo
                     await Promise.all(
-                      periodos.flatMap((periodo) =>
-                        estudiantes.map((est) =>
-                          registrarCalificacion({
-                            estudianteId: String(est.id),
-                            asignaturaId,
-                            cursoId,
-                            periodo,
-                            nota: 0, // Nota inicial
-                            observaciones: `Profesor: ${asig.profesor.nombre} (${profesorId})`,
-                          })
-                        )
-                      )
+                      estudiantes.map(async (est) => {
+                        const yaExiste = existentes.some(
+                          (c) => c.estudianteId == est.id && c.periodo === periodo
+                        );
+                        if (!yaExiste) {
+                          try {
+                            await registrarCalificacion({
+                              estudianteId: String(est.id),
+                              asignaturaId,
+                              cursoId,
+                              periodo,
+                              nota: 0,
+                              observaciones: `Profesor: ${asig.profesor.nombre} (${profesorId})`,
+                            });
+                          } catch (e) {
+                            // Ignorar error si ya existe
+                          }
+                        }
+                      })
                     );
-                
-                    // Refrescar calificaciones
-                    const res = await getCalificaciones({ cursoId, periodo });
-                    setCalificaciones((res as any).calificaciones || []);
+
+                    // Refrescar calificaciones y asignaturas desde la API
+                    const resCalif = await getCalificaciones({ cursoId, periodo });
+                    setCalificaciones((resCalif as any).calificaciones || []);
                   }}
                   onEliminar={eliminarAsignaturaDeGrado}
                   disabled={!(estudiantesPorGrado[gradoSeleccionado.id] && estudiantesPorGrado[gradoSeleccionado.id].length > 0)}
