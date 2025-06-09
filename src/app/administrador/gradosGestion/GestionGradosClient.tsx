@@ -214,29 +214,33 @@ export default function GestionGradosClient() {
     setNombreEditado("");
   };
 
-  // Eliminar asignatura y profesor del grado (elimina todas las calificaciones de esa asignatura en el periodo actual)
+  // Eliminar asignatura y profesor del grado (elimina solo las calificaciones de esa asignatura en el periodo actual)
   const eliminarAsignaturaDeGrado = async (asignaturaId: number | string) => {
     if (!gradoSeleccionado || !periodo) return;
-    // Buscar todas las calificaciones de esa asignatura, grado y periodo
     const cursoId = String(gradoSeleccionado.id);
+    // Buscar solo las calificaciones de esa asignatura, grado y periodo actual
     const res = await getCalificaciones({ cursoId, asignaturaId: String(asignaturaId), periodo });
     const calificacionesAEliminar = (res as any).calificaciones || [];
-    // Eliminar todas las calificaciones encontradas
+    // Eliminar solo las calificaciones encontradas para este periodo
     for (const cal of calificacionesAEliminar) {
-      await import("../../api/calificacionesApi").then(api => api.eliminarCalificacion(cal.id));
+      if (cal.periodo === periodo) {
+        await import("../../api/calificacionesApi").then(api => api.eliminarCalificacion(cal.id));
+      }
     }
-    // Refrescar calificaciones y asignaturas
+    // Refrescar calificaciones y asignaturas SOLO del periodo actual
     const res2 = await getCalificaciones({ cursoId, periodo });
     const nuevasCalificaciones = (res2 as any).calificaciones || [];
     setCalificaciones(nuevasCalificaciones);
-    // Reconstruir asignaturas del grado seleccionado según las calificaciones actuales
+    // Reconstruir asignaturas del grado seleccionado SOLO según las calificaciones del periodo actual
     const asignaturasMap: Record<string, { id: string, nombre: string, profesor?: string }> = {};
     nuevasCalificaciones.forEach((c: any) => {
       if (c.periodo !== periodo) return;
       if (!asignaturasMap[c.asignaturaId]) {
         let profesor = undefined;
         if (c.observaciones && c.observaciones.startsWith("Profesor:")) {
-          profesor = c.observaciones.replace("Profesor:", "").trim();
+          // Extraer solo el nombre antes del paréntesis (si existe)
+          const match = c.observaciones.match(/^Profesor:\s*(.+?)(?:\s*\(.*\))?$/);
+          profesor = match ? match[1].trim() : c.observaciones.replace("Profesor:", "").trim();
         }
         asignaturasMap[c.asignaturaId] = {
           id: c.asignaturaId,
