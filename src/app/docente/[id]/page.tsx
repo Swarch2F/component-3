@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getProfesorPorId } from "../../api/profesoresApi";
 import { getAsignaturas } from "../../api/asignaturasApi";
-import { getAllCursos, getAllEstudiantes } from "../../api/estudiantesCursos.api";
+import { getAllCursos, getAllEstudiantes, getCursoEstudiantes } from "../../api/estudiantesCursos.api";
 import TableEstudiantes from "../../components/TableEstudiantes";
 import { actualizarCalificacion, getCalificaciones, registrarCalificacion } from "../../api/calificacionesApi";
 
@@ -23,6 +23,14 @@ const ANOS = Array.from({ length: currentYear - 2022 }, (_, i) => {
   return { value: String(year), label: `${year}` };
 });
 
+// Unificar selector de periodo (igual que en gradoGestion)
+const periodosDisponibles: string[] = [];
+for (const ano of ANOS) {
+  for (const p of PERIODOS) {
+    periodosDisponibles.push(`${ano.value}-${p.value}`);
+  }
+}
+
 export default function DocenteDetallePage() {
   const params = useParams();
   const id = params.id as string;
@@ -35,8 +43,7 @@ export default function DocenteDetallePage() {
   const [gradoSeleccionado, setGradoSeleccionado] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [anoSeleccionado, setAnoSeleccionado] = useState<string>(ANOS[0].value);
-  const [periodo, setPeriodo] = useState<string>(PERIODOS[0].value);
+  const [periodo, setPeriodo] = useState<string>(periodosDisponibles[0]);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
@@ -61,54 +68,20 @@ export default function DocenteDetallePage() {
 
         // 3. Obtener cursos y estudiantes desde REST
         const cursos = await getAllCursos();
-        const estudiantes = await getAllEstudiantes();
-
+        const estudiantesRes = await getAllEstudiantes();
+        // Filtrar estudiantes que tengan curso asignado
+        const estudiantes = (estudiantesRes.results || []).filter((e: any) => e.curso && e.curso.id);
         // Guardar los datos originales
         setGradosOriginales(cursos);
         const estudiantesPorGradoTmp: Record<number, any[]> = {};
         cursos.forEach((curso: any) => {
-          estudiantesPorGradoTmp[curso.id] = estudiantes.filter((e: any) => e.curso === curso.id);
+          estudiantesPorGradoTmp[curso.id] = estudiantes.filter((e: any) => e.curso.id === curso.id);
         });
         setEstudiantesOriginales(estudiantesPorGradoTmp);
 
-        // Filtrar los cursos iniciales según el periodo actual
-        await refrescarCursosYEstudiantes(anoSeleccionado, periodo);
-
-        // 4. Obtener todos los cursos donde el profesor ha puesto calificaciones
-        let cursosAsignados: any[] = [];
-        if (asignaturaEncontrada) {
-          try {
-            // Obtener calificaciones para esta asignatura
-            const calRes = await getCalificaciones({
-              asignaturaId: asignaturaEncontrada.id
-            });
-            const calificaciones = (calRes as { calificaciones: any[] }).calificaciones || [];
-            
-            // Filtrar calificaciones donde este profesor aparece en las observaciones
-            const calProfesor = calificaciones.filter((cal: any) => 
-              cal.observaciones && cal.observaciones.includes(`Profesor: ${prof.nombre}`)
-            );
-            
-            // Obtener los IDs únicos de los cursos donde el profesor ha puesto calificaciones
-            const cursosIds = [...new Set(calProfesor.map(cal => cal.cursoId))];
-            
-            // Filtrar los cursos basados en las calificaciones encontradas
-            cursosAsignados = cursos.filter(curso => cursosIds.includes(String(curso.id)));
-          } catch (error) {
-            console.error("Error al obtener calificaciones:", error);
-          }
-        }
-
-        console.log(`Mostrando cursos con calificaciones del profesor (${cursosAsignados.length} en total)`);
-        setGrados(cursosAsignados);
-
-        // 5. Relacionar estudiantes por grado SOLO para los cursos con calificaciones
-        const estudiantesPorGradoAsignados: Record<number, any[]> = {};
-        cursosAsignados.forEach((curso: any) => {
-          estudiantesPorGradoAsignados[curso.id] = estudiantes.filter((e: any) => e.curso === curso.id);
-        });
-        setEstudiantesPorGrado(estudiantesPorGradoAsignados);
-
+        // 4. Refrescar cursos y estudiantes SOLO para el periodo actual (filtrando por profesor)
+        // Esperar a que setProfesor termine antes de refrescar
+        setTimeout(() => refrescarCursosYEstudiantes(periodo), 0);
       } catch (error) {
         console.error("Error al cargar el docente:", error);
         setError(typeof error === 'string' ? error : "Error al cargar el docente");
@@ -119,9 +92,8 @@ export default function DocenteDetallePage() {
     fetchData();
   }, [id]);
 
-  async function refrescarNotas(gradoId: string, asignaturaId: string, anoSeleccionado: string, periodo: string) {
-    // Formar el periodo completo (año + periodo)
-    const periodoCompleto = `${anoSeleccionado}-${periodo}`;
+  async function refrescarNotas(gradoId: string, asignaturaId: string, periodo: string) {
+    const periodoCompleto = periodo;
     console.log(`Consultando calificaciones con periodo: ${periodoCompleto}`);
     
     const res = await getCalificaciones({
@@ -144,8 +116,8 @@ export default function DocenteDetallePage() {
     });
   }
 
-  async function refrescarCursosYEstudiantes(anoSeleccionado: string, periodo: string) {
-    const periodoCompleto = `${anoSeleccionado}-${periodo}`;
+  async function refrescarCursosYEstudiantes(periodo: string) {
+    const periodoCompleto = periodo;
     console.log(`Refrescando cursos y estudiantes para el periodo: ${periodoCompleto}`);
 
     try {
@@ -153,18 +125,42 @@ export default function DocenteDetallePage() {
       const res = await getCalificaciones({ periodo: periodoCompleto });
       const calificaciones = (res as { calificaciones: any[] }).calificaciones || [];
 
-      // Filtrar cursos con calificaciones en este periodo
-      const cursosIds = [...new Set(calificaciones.map((cal: any) => cal.cursoId))];
-      const cursosAsignados = gradosOriginales.filter((curso) => cursosIds.includes(String(curso.id)));
+      // Filtrar calificaciones donde el profesor aparece en las observaciones
+      let calificacionesProfesor = calificaciones;
+      if (profesor) {
+        calificacionesProfesor = calificaciones.filter((cal: any) =>
+          cal.observaciones && cal.observaciones.includes(`Profesor: ${profesor.nombre}`)
+        );
+      }
 
-      // Relacionar estudiantes por grado SOLO para los cursos con calificaciones
+      // Filtrar cursos con calificaciones del profesor en este periodo
+      const cursosIds = [...new Set(calificacionesProfesor.map((cal: any) => cal.cursoId))];
+      let cursosAsignados = gradosOriginales.filter((curso) => cursosIds.includes(String(curso.id)));
+
+      // Si hay un grado seleccionado pero no está en cursosAsignados, lo agregamos para mostrar sus estudiantes
+      let gradoExtra = null;
+      if (gradoSeleccionado && !cursosAsignados.find((g) => g.id === gradoSeleccionado)) {
+        gradoExtra = gradosOriginales.find((g) => g.id === gradoSeleccionado);
+        if (gradoExtra) {
+          cursosAsignados.push(gradoExtra);
+        }
+      }
+
+      // Obtener estudiantes de cada curso usando el endpoint GraphQL
       const estudiantesPorGradoAsignados: Record<number, any[]> = {};
-      cursosAsignados.forEach((curso: any) => {
-        estudiantesPorGradoAsignados[curso.id] = estudiantesOriginales[curso.id] || [];
-      });
+      await Promise.all(
+        cursosAsignados.map(async (curso: any) => {
+          try {
+            const resEst = await getCursoEstudiantes(curso.id);
+            estudiantesPorGradoAsignados[curso.id] = resEst || [];
+          } catch (e) {
+            estudiantesPorGradoAsignados[curso.id] = [];
+          }
+        })
+      );
 
-      setGrados(cursosAsignados);
-      setEstudiantesPorGrado(estudiantesPorGradoAsignados);
+      setGrados([...cursosAsignados]);
+      setEstudiantesPorGrado({ ...estudiantesPorGradoAsignados });
     } catch (error) {
       console.error("Error al refrescar cursos y estudiantes:", error);
       setGrados([]);
@@ -172,18 +168,17 @@ export default function DocenteDetallePage() {
     }
   }
 
-  // Effect to refresh notes when period, year, or grade selection changes
+  // Effect to refresh notes when periodo o gradoSeleccionado cambian
   useEffect(() => {
     if (gradoSeleccionado && asignatura) {
-      console.log(`Refrescando notas - Grado: ${gradoSeleccionado}, Año: ${anoSeleccionado}, Periodo: ${periodo}`);
-      refrescarNotas(String(gradoSeleccionado), asignatura.id, anoSeleccionado, periodo);
+      refrescarNotas(String(gradoSeleccionado), asignatura.id, periodo);
     }
-  }, [gradoSeleccionado, anoSeleccionado, periodo, asignatura]);
+  }, [gradoSeleccionado, periodo, asignatura]);
 
-  // Effect to refresh courses and students when year or period changes
+  // Effect to refresh courses and students when periodo cambia
   useEffect(() => {
-    refrescarCursosYEstudiantes(anoSeleccionado, periodo);
-  }, [anoSeleccionado, periodo]);
+    refrescarCursosYEstudiantes(periodo);
+  }, [periodo]);
 
   // Obtener periodos únicos con calificaciones para el grado y asignatura seleccionados
   const periodosConCalificaciones = gradoSeleccionado && asignatura
@@ -240,53 +235,28 @@ export default function DocenteDetallePage() {
         )}
       </div>
 
-      {/* Selectores de año y periodo */}
+      {/* Selector de periodo unificado */}
       <div className="w-full max-w-md mb-6">
         <div className="card-modern p-6 shadow-lg border border-blue-100">
           <h3 className="font-bold text-xl mb-4 text-center text-blue-800">Periodo Académico</h3>
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4 justify-center">
-            <div className="w-full sm:w-1/2">
-              <label htmlFor="ano-select" className="font-semibold block mb-2 text-gray-700">Año:</label>
-              <select
-                id="ano-select"
-                className="border border-gray-300 rounded-md px-3 py-2 w-full bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                value={anoSeleccionado}
-                onChange={e => {
-                  console.log("Año seleccionado:", e.target.value);
-                  setAnoSeleccionado(e.target.value);
-                }}
-              >
-                <option value="">Seleccione año</option>
-                {ANOS.map((ano) => (
-                  <option key={ano.value} value={ano.value}>
-                    {ano.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="w-full sm:w-1/2">
+          <div className="flex flex-col gap-4 justify-center">
+            <div className="w-full">
               <label htmlFor="periodo-select" className="font-semibold block mb-2 text-gray-700">Periodo:</label>
               <select
                 id="periodo-select"
                 className="border border-gray-300 rounded-md px-3 py-2 w-full bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={periodo}
-                onChange={e => {
-                  console.log("Periodo seleccionado:", e.target.value);
-                  setPeriodo(e.target.value);
-                }}
+                onChange={e => setPeriodo(e.target.value)}
               >
-                <option value="">Seleccione periodo</option>
-                {PERIODOS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
+                <option value="" disabled>Seleccione periodo</option>
+                {periodosDisponibles.map((p) => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
               </select>
             </div>
           </div>
           <div className="text-center text-sm text-gray-500 mt-4 bg-blue-50 p-2 rounded-md">
-            Seleccione el año y periodo para ver y guardar calificaciones
+            Seleccione el periodo para ver y guardar calificaciones
           </div>
         </div>
       </div>
@@ -323,7 +293,7 @@ export default function DocenteDetallePage() {
               </h2>
               <div className="text-center mb-6">
                 <span className="inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-semibold text-sm">
-                  <span className="font-bold">{anoSeleccionado}</span> - {PERIODOS.find(p => p.value === periodo)?.label}
+                  <span className="font-bold">{periodo.split('-')[0]}</span> - {PERIODOS.find(p => p.value === periodo.split('-')[1])?.label}
                 </span>
               </div>
               {feedback && (
@@ -335,11 +305,11 @@ export default function DocenteDetallePage() {
                 data={
                   (estudiantesPorGrado[gradoSeleccionado] || []).map((est: any) => ({
                     id: String(est.id),
-                    nombre: est.nombre_completo,
+                    nombre: est.nombreCompleto || est.nombre_completo || est.nombre || "",
                     documento: est.documento,
                     grado: grados.find(g => g.id === gradoSeleccionado)?.nombre || "",
                     nota: est.nota ?? undefined,
-                    nacimiento: est.nacimiento ?? "",
+                    nacimiento: est.fechaNacimiento || est.nacimiento || "",
                     acudiente: est.acudiente ?? "",
                   }))
                 }
@@ -348,7 +318,7 @@ export default function DocenteDetallePage() {
                   try {
                     // 1. Obtener las calificaciones actuales de este grado, asignatura y periodo
                     // Formar el periodo completo (año + periodo)
-                    const periodoCompleto = `${anoSeleccionado}-${periodo}`;
+                    const periodoCompleto = `${periodo}`;
                     const res = await getCalificaciones({
                       cursoId: String(gradoSeleccionado),
                       asignaturaId: asignatura.id,
@@ -376,13 +346,13 @@ export default function DocenteDetallePage() {
                             cursoId: String(gradoSeleccionado),
                             nota: est.nota,
                             periodo: periodoCompleto,
-                            observaciones: `Profesor: ${profesor.nombre} (${profesor.id}) | Año: ${anoSeleccionado}`
+                            observaciones: `Profesor: ${profesor.nombre} (${profesor.id}) | Año: ${periodo.split('-')[0]}`
                           });
                         }
                       })
                     );
                     // 3. Refresca las notas en la tabla
-                    await refrescarNotas(String(gradoSeleccionado), asignatura.id, anoSeleccionado, periodo);
+                    await refrescarNotas(String(gradoSeleccionado), asignatura.id, periodo);
                     setFeedback({ type: "success", message: "Notas guardadas correctamente." });
                   } catch (e) {
                     setFeedback({ type: "error", message: "Error al guardar las notas." });

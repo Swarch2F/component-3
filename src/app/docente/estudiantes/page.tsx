@@ -74,7 +74,7 @@ export default function DocenteDetallePage() {
         // 5. Relacionar estudiantes por grado SOLO para los cursos con calificaciones
         const porGrado: Record<number, any[]> = {};
         cursosAsignados.forEach((curso: any) => {
-          porGrado[curso.id] = estudiantes.filter((e: any) => e.curso === curso.id);
+          porGrado[curso.id] = (estudiantes.results || []).filter((e: any) => e.curso && e.curso.id === curso.id);
         });
         setEstudiantesPorGrado(porGrado);
 

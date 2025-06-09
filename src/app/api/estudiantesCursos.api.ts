@@ -225,6 +225,23 @@ export async function deleteCurso(id: string | number) {
   return graphQLClient.request(mutation);
 }
 
+// Obtener estudiantes de un curso por ID usando GraphQL
+export async function getCursoEstudiantes(id: string | number) {
+  const query = `
+    query($id: ID!) {
+      cursoEstudiantes(id: $id) {
+        id
+        nombreCompleto
+        documento
+        fechaNacimiento
+        acudiente
+      }
+    }
+  `;
+  const res = await graphQLClient.request(query, { id: String(id) }) as { cursoEstudiantes: any[] };
+  return res.cursoEstudiantes || [];
+}
+
 // --- En tu componente, asegúrate de usar esto al obtener estudiantes ---
 // Ejemplo para GestionGradosClient.tsx:
 // const estudiantesRes = await getAllEstudiantes();
