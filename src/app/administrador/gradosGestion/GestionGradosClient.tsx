@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import MenuAsignaturas, { Asignatura as AsignaturaMenu } from "./MenuAsignaturas";
 import { getAsignaturas } from "../../api/asignaturasApi";
-import { getAllCursos, createCurso, updateCurso, deleteCurso, Curso, getAllEstudiantes, Estudiante as EstudianteApi } from "../../api/estudiantesCursos.api";
+import { getAllCursos, createCurso, updateCurso, updateCursoParcial, deleteCurso, Curso, getAllEstudiantes, Estudiante as EstudianteApi } from "../../api/estudiantesCursos.api";
 import { getCalificaciones, registrarCalificacion } from "../../api/calificacionesApi";
 
 // Definir tipos para los datos
@@ -69,12 +69,14 @@ export default function GestionGradosClient() {
       setLoadingGrados(true);
       try {
         const cursos: Curso[] = await getAllCursos();
-        const estudiantes: EstudianteApi[] = await getAllEstudiantes();
+        // CORRECCIÓN: obtener estudiantes como array
+        const estudiantesRes = await getAllEstudiantes();
+        const estudiantes: EstudianteApi[] = estudiantesRes.results || [];
         setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
-        // Asociar estudiantes a cada grado
+        // Asociar estudiantes a cada grado usando el campo estudiantes de cada curso
         const porGrado: Record<number | string, EstudianteApi[]> = {};
         cursos.forEach(curso => {
-          porGrado[curso.id!] = estudiantes.filter(e => e.curso === curso.id);
+          porGrado[curso.id!] = (curso.estudiantes || []);
         });
         setEstudiantesPorGrado(porGrado);
       } finally {
@@ -207,7 +209,8 @@ export default function GestionGradosClient() {
     setNombreEditado(grado.nombre);
   };
   const guardarEdicion = async (id: number) => {
-    await updateCurso(id, { nombre: nombreEditado });
+    // Usar la mutación parcial para solo actualizar el nombre
+    await updateCursoParcial(id, nombreEditado);
     const cursos: Curso[] = await getAllCursos();
     setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
     setEditando(null);
@@ -396,7 +399,7 @@ export default function GestionGradosClient() {
                       ) : (
                         gradoSeleccionado && (estudiantesPorGrado[gradoSeleccionado.id] || []).map((est, i) => (
                           <tr key={est.id}>
-                            <td className="px-2 py-1 border font-semibold">{est.nombre_completo}</td>
+                            <td className="px-2 py-1 border font-semibold">{est.nombreCompleto}</td>
                             <td className="px-2 py-1 border">{est.documento}</td>
                             {gradoSeleccionado.asignaturas.map((asig) => {
                               // Buscar la calificación para este estudiante/asignatura/periodo

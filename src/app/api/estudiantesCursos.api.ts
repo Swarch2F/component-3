@@ -7,6 +7,7 @@ export interface Curso {
   id?: string;
   nombre: string;
   codigo: string;
+  estudiantes?: Estudiante[]; // <-- Agregado para soportar la respuesta GraphQL
 }
 
 export interface Estudiante {
@@ -62,8 +63,30 @@ const MUTATION_ELIMINAR_ESTUDIANTE = `
 
 // --- Funciones GraphQL ---
 export async function getAllCursos() {
-  const res = await graphQLClient.request(QUERY_LISTAR_CURSOS, { search: "", ordering: "nombre", page: 1 }) as { cursos: { results: Curso[] } };
-  return res.cursos.results;
+  let allCursos: Curso[] = [];
+  let currentPage = 1;
+  let keepFetching = true;
+  try {
+    while (keepFetching) {
+      const res = await graphQLClient.request(
+        `query { cursos(search: "", ordering: "nombre", page: ${currentPage}) { next results { id nombre codigo estudiantes { id nombreCompleto documento } } } }`
+      ) as { cursos: { next: any, results: Curso[] } };
+      if (!res || !res.cursos || !Array.isArray(res.cursos.results)) {
+        console.error("Respuesta inesperada de cursos:", res);
+        throw new Error("Error al obtener cursos: respuesta inesperada");
+      }
+      allCursos = allCursos.concat(res.cursos.results);
+      if (!res.cursos.next) {
+        keepFetching = false;
+      } else {
+        currentPage++;
+      }
+    }
+    return allCursos;
+  } catch (e) {
+    console.error("Error en getAllCursos:", e);
+    throw e;
+  }
 }
 
 export async function getAllEstudiantes({ search = "", ordering = "nombreCompleto", page = 1 } = {}) {
@@ -150,3 +173,64 @@ export async function updateEstudiante(id: string, data: Partial<Estudiante>) {
 export async function deleteEstudiante(id: string) {
   return graphQLClient.request(MUTATION_ELIMINAR_ESTUDIANTE, { id });
 }
+
+// --- Mutaciones para cursos (grados) usando API Gateway ---
+export async function createCurso(data: { nombre: string; codigo: string }) {
+  const mutation = `
+    mutation {
+      crearCurso(input: { nombre: "${data.nombre.replace(/"/g, '\"')}", codigo: "${data.codigo.replace(/"/g, '\"')}" }) {
+        id
+        nombre
+        codigo
+      }
+    }
+  `;
+  return graphQLClient.request(mutation);
+}
+
+export async function updateCurso(id: string | number, data: { nombre: string; codigo: string }) {
+  // Ambos campos son obligatorios para la mutación
+  const mutation = `
+    mutation {
+      actualizarCurso(id: "${id}", input: { nombre: "${data.nombre.replace(/"/g, '\"')}", codigo: "${data.codigo.replace(/"/g, '\"')}" }) {
+        id
+        nombre
+        codigo
+      }
+    }
+  `;
+  return graphQLClient.request(mutation);
+}
+
+// --- Mutación para actualizar solo el nombre del curso (parcial) ---
+export async function updateCursoParcial(id: string | number, nombre: string) {
+  const mutation = `
+    mutation {
+      actualizarCursoParcial(id: "${id}", nombre: "${nombre.replace(/"/g, '\"')}") {
+        id
+        nombre
+        codigo
+      }
+    }
+  `;
+  return graphQLClient.request(mutation);
+}
+
+export async function deleteCurso(id: string | number) {
+  const mutation = `
+    mutation {
+      eliminarCurso(id: "${id}")
+    }
+  `;
+  return graphQLClient.request(mutation);
+}
+
+// --- En tu componente, asegúrate de usar esto al obtener estudiantes ---
+// Ejemplo para GestionGradosClient.tsx:
+// const estudiantesRes = await getAllEstudiantes();
+// const estudiantes: EstudianteApi[] = estudiantesRes.results || [];
+// ...
+// cursos.forEach(curso => {
+//   porGrado[curso.id!] = estudiantes.filter(e => e.curso === curso.id);
+// });
+//
