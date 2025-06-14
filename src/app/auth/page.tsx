@@ -169,6 +169,33 @@ const AuthPage = () => {
     window.location.href = `${API_BASE}/auth/google/login`;
   };
 
+  const handleLogout = async () => {
+    setLoginResult(null);
+    setAuthStatusResult(null);
+    setUserInfo(null);
+    setIsAuthenticated(false);
+    setLinkGoogleResult(null);
+
+    try {
+      const response = await fetch(`${API_BASE}/logout`, {
+        ...fetchConfig,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result: MessageResponse | ErrorResponse = await response.json();
+
+      if (response.ok) {
+        showResult(setAuthStatusResult, 'Sesión cerrada exitosamente.', false);
+      } else {
+        showResult(setAuthStatusResult, `Error al cerrar sesión: ${(result as ErrorResponse).error}`, true);
+      }
+    } catch (error) {
+      showResult(setAuthStatusResult, 'Error de conexión al cerrar sesión.', true);
+      console.error('Error al cerrar sesión:', error);
+    }
+    checkAuthStatus();
+  };
+
   const handleLinkGoogleAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setLinkGoogleResult(null);
@@ -327,6 +354,11 @@ const AuthPage = () => {
             <h3>Información del Usuario:</h3>
             <pre style={{ color: '#000000' }}>{JSON.stringify({ user: userInfo, isAuthenticated }, null, 2)}</pre>
           </div>
+        )}
+        {isAuthenticated && (
+          <button onClick={handleLogout} className={styles.button} style={{ marginTop: '1rem', backgroundColor: '#dc3545' }}>
+            Cerrar Sesión
+          </button>
         )}
       </section>
 

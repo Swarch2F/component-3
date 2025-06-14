@@ -7,6 +7,9 @@ export default function Home() {
         <h1 className="text-5xl font-extrabold mb-4 title-modern drop-shadow">Bienvenido a Gradex</h1>
         <p className="subtitle-modern mb-8 text-lg">Gestión innovadora y moderna de calificaciones</p>
         <Link href="/administrador" className="btn-primary px-6 py-3 text-lg">Ingresar</Link>
+        <br />
+        <br />
+        <Link href="/auth" className="btn-primary px-6 py-3 text-lg">Pagina de autenticación (pruebas)</Link>
       </div>
     </div>
   );
