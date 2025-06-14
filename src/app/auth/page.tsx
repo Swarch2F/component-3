@@ -24,7 +24,7 @@ interface ErrorResponse {
   error: string;
 }
 
-const API_BASE = 'http://localhost:8080/api/v1';
+const API_BASE = 'http://localhost:8082/api/v1';
 
 const AuthPage = () => {
   // Estado para los formularios
