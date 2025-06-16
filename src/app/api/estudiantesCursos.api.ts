@@ -1,6 +1,6 @@
 import { graphQLClient } from "./graphqlClient";
 
-const API_URL = process.env.NEXT_PUBLIC_SIA_API_URL || "http://localhost:8000/api";
+
 
 // Tipos para cursos y estudiantes
 export interface Curso {
