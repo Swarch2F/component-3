@@ -3,9 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-export default function Navbar() {
+import { logout } from "../api/authApi";
+
+export default function Navbar({ onlyLogout }: { onlyLogout?: boolean }) {
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const isAdminSubpage = pathname.startsWith("/administrador/");
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = "/";
+  };
 
   return (
     <nav className="navbar-modern text-white px-8 py-4 flex items-center justify-between shadow-lg relative">
@@ -29,12 +37,29 @@ export default function Navbar() {
         </span>
       </div>
       <div className="space-x-6 flex items-center">
-        {isHome ? (
-          <Link href="/administrador" className="navbar-link">Ingresar</Link>
+        {onlyLogout ? (
+          <>
+            {isAdminSubpage && (
+              <Link href="/administrador" className="btn-secondary">
+                Inicio Admin
+              </Link>
+            )}
+            <button onClick={handleLogout} className="btn-primary">
+              Cerrar sesión
+            </button>
+          </>
+        ) : isHome ? (
+          <Link href="/login" className="navbar-link">
+            Ingresar
+          </Link>
         ) : (
           <>
-            <Link href="/administrador" className="navbar-link">Administrador</Link>
-            <Link href="/docente" className="navbar-link">Profesor</Link>
+            <Link href="/administrador" className="navbar-link">
+              Administrador
+            </Link>
+            <Link href="/docente" className="navbar-link">
+              Profesor
+            </Link>
           </>
         )}
       </div>

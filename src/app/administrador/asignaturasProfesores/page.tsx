@@ -35,10 +35,13 @@ interface GetAsignaturasResponse {
   asignaturas: Asignatura[];
 }
 
+// Modificar el estado para incluir correo y contraseña
+type NuevoProfesor = { nombre: string; documento: string; asignaturaId: string; correo: string; contrasena: string };
+
 export default function GestionAsignaturasProfesores() {
   const [profesores, setProfesores] = useState<Profesor[]>([]);
   const [asignaturas, setAsignaturas] = useState<Asignatura[]>([]);
-  const [nuevoProfesor, setNuevoProfesor] = useState({ nombre: "", documento: "", asignaturaId: "" });
+  const [nuevoProfesor, setNuevoProfesor] = useState<NuevoProfesor>({ nombre: "", documento: "", asignaturaId: "", correo: "", contrasena: "" });
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [editando, setEditando] = useState<{ nombre: string; documento: string; asignaturaId: string }>({ nombre: "", documento: "", asignaturaId: "" });
   const [showConfirm, setShowConfirm] = useState<{ tipo: 'profesor' | 'asignatura', id: string, nombre: string, asignaturaId?: string } | null>(null);
@@ -84,11 +87,24 @@ export default function GestionAsignaturasProfesores() {
       alert("Debe seleccionar una asignatura.");
       return;
     }
+    if (!nuevoProfesor.correo.trim() || !nuevoProfesor.contrasena.trim()) {
+      alert("Debe ingresar correo y contraseña para el usuario del profesor.");
+      return;
+    }
     // Usar 'General' como área por defecto
     const area = "General";
     const res = (await crearProfesor(nuevoProfesor.nombre, nuevoProfesor.documento, area)) as { crearProfesor: Profesor };
     await import("../../api/asignaturasApi").then(api =>
       api.asignarProfesorAAsignatura(res.crearProfesor.id, nuevoProfesor.asignaturaId)
+    );
+    // Registrar usuario para login
+    await import("../../api/authApi").then(api =>
+      api.registerUser(
+        nuevoProfesor.correo,
+        nuevoProfesor.contrasena,
+        nuevoProfesor.nombre,
+        "PROFESOR"
+      )
     );
     // Refrescar tanto profesores como asignaturas para que la relación se vea reflejada de inmediato
     const [profRes, asigRes] = await Promise.all([
@@ -97,7 +113,7 @@ export default function GestionAsignaturasProfesores() {
     ]);
     setProfesores((profRes as GetProfesoresResponse).profesores);
     setAsignaturas((asigRes as GetAsignaturasResponse).asignaturas);
-    setNuevoProfesor({ nombre: "", documento: "", asignaturaId: "" });
+    setNuevoProfesor({ nombre: "", documento: "", asignaturaId: "", correo: "", contrasena: "" });
   };
 
   // Editar profesor
@@ -290,6 +306,8 @@ export default function GestionAsignaturasProfesores() {
         <div className="flex gap-2 mt-4 flex-wrap">
           <input value={nuevoProfesor.nombre} onChange={e => setNuevoProfesor({ ...nuevoProfesor, nombre: e.target.value })} placeholder="Nombre del profesor" className="input-modern flex-1" />
           <input value={nuevoProfesor.documento} onChange={e => setNuevoProfesor({ ...nuevoProfesor, documento: e.target.value })} placeholder="N. Documento" className="input-modern flex-1" />
+          <input value={nuevoProfesor.correo} onChange={e => setNuevoProfesor({ ...nuevoProfesor, correo: e.target.value })} placeholder="Correo del profesor" className="input-modern flex-1" />
+          <input type="password" value={nuevoProfesor.contrasena} onChange={e => setNuevoProfesor({ ...nuevoProfesor, contrasena: e.target.value })} placeholder="Contraseña" className="input-modern flex-1" />
           <select value={nuevoProfesor.asignaturaId} onChange={e => setNuevoProfesor({ ...nuevoProfesor, asignaturaId: e.target.value })} className="input-modern flex-1">
             <option value="">Asignatura</option>
             {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}

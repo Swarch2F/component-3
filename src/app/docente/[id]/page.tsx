@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getProfesorPorId } from "../../api/profesoresApi";
 import { getAsignaturas } from "../../api/asignaturasApi";
 import { getAllCursos, getAllEstudiantes, getCursoEstudiantes } from "../../api/estudiantesCursos.api";
 import TableEstudiantes from "../../components/TableEstudiantes";
 import { actualizarCalificacion, getCalificaciones, registrarCalificacion } from "../../api/calificacionesApi";
+import { getAuthStatus } from "../../api/authApi";
 
 // Periodos disponibles
 const PERIODOS = [
@@ -35,7 +35,8 @@ export default function DocenteDetallePage() {
   const params = useParams();
   const id = params.id as string;
   const [profesor, setProfesor] = useState<any>(null);
-  const [asignatura, setAsignatura] = useState<any>(null);
+  const [asignaturas, setAsignaturas] = useState<any[]>([]); // Todas las asignaturas del profesor
+  const [asignatura, setAsignatura] = useState<any>(null); // Asignatura seleccionada
   const [gradosOriginales, setGradosOriginales] = useState<any[]>([]); // Datos originales de los cursos
   const [estudiantesOriginales, setEstudiantesOriginales] = useState<Record<number, any[]>>({}); // Datos originales de los estudiantes
   const [grados, setGrados] = useState<any[]>([]); // Cursos visibles
@@ -49,24 +50,31 @@ export default function DocenteDetallePage() {
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
+      // Validar autenticación y rol antes de cargar datos
+      const auth = await getAuthStatus();
+      if (!auth.isAuthenticated || auth.user.role !== "PROFESOR") {
+        window.location.href = "/login";
+        return;
+      }
       try {
-        // 1. Obtener profesor
-        const profRes = await getProfesorPorId(id);
-        const prof = (profRes as { profesorPorId: any }).profesorPorId;
-        if (!prof) {
-          throw new Error("Profesor no encontrado");
-        }
+        // Buscar profesor por nombre (no por id)
+        const profsRes = await import("../../api/profesoresApi").then(api => api.getProfesores());
+        const profesores = (profsRes as { profesores: any[] }).profesores || [];
+        // Buscar por nombre exacto (case sensitive, igual que auth.user.name)
+        const prof = profesores.find((p: any) => p.nombre === auth.user.name);
+        if (!prof) throw new Error("Profesor no encontrado para el usuario autenticado");
         setProfesor(prof);
 
-        // 2. Obtener asignatura asignada a este profesor
+        // Obtener asignaturas asignadas a este profesor (por su id de Mongo)
         const asigRes = await getAsignaturas();
-        const asignaturas = (asigRes as { asignaturas: any[] }).asignaturas || [];
-        const asignaturaEncontrada = asignaturas.find(
-          (a: any) => a.profesorIds && a.profesorIds.includes(id)
-        );
-        setAsignatura(asignaturaEncontrada || null);
+        const todasAsignaturas = (asigRes as { asignaturas: any[] }).asignaturas || [];
+        // Buscar todas las asignaturas donde el id del profesor esté en profesorIds
+        const asignaturasDelProfesor = todasAsignaturas.filter((a: any) => a.profesorIds && a.profesorIds.includes(prof.id));
+        setAsignaturas(asignaturasDelProfesor);
+        // Seleccionar la primera asignatura por defecto
+        setAsignatura(asignaturasDelProfesor[0] || null);
 
-        // 3. Obtener cursos y estudiantes desde REST
+        // Obtener cursos y estudiantes desde REST
         const cursos = await getAllCursos();
         const estudiantesRes = await getAllEstudiantes();
         // Filtrar estudiantes que tengan curso asignado
@@ -78,9 +86,7 @@ export default function DocenteDetallePage() {
           estudiantesPorGradoTmp[curso.id] = estudiantes.filter((e: any) => e.curso.id === curso.id);
         });
         setEstudiantesOriginales(estudiantesPorGradoTmp);
-
-        // 4. Refrescar cursos y estudiantes SOLO para el periodo actual (filtrando por profesor)
-        // Esperar a que setProfesor termine antes de refrescar
+        // Refrescar cursos y estudiantes SOLO para el periodo actual (filtrando por profesor)
         setTimeout(() => refrescarCursosYEstudiantes(periodo), 0);
       } catch (error) {
         console.error("Error al cargar el docente:", error);
@@ -221,19 +227,32 @@ export default function DocenteDetallePage() {
       <div className="card-modern text-center font-bold text-2xl tracking-wide mb-6 title-modern">
         {profesor.nombre}
       </div>
-      <div className="text-lg mb-2">
-        <strong>Documento:</strong> {profesor.documento}
-      </div>
-      <div className="text-lg mb-2">
-        <strong>Asignatura:</strong>{" "}
-        {asignatura ? (
+      {/* Selector de asignatura si hay más de una */}
+      {asignaturas.length > 1 && (
+        <div className="mb-4">
+          <label className="font-semibold mr-2">Asignatura:</label>
+          <select
+            className="input-modern"
+            value={asignatura?.id || ""}
+            onChange={e => {
+              const found = asignaturas.find(a => a.id === e.target.value);
+              setAsignatura(found || null);
+            }}
+          >
+            {asignaturas.map(a => (
+              <option key={a.id} value={a.id}>{a.nombre}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {asignatura && (
+        <div className="text-lg mb-2">
+          <strong>Asignatura:</strong>{" "}
           <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded font-semibold">
             {asignatura.nombre}
           </span>
-        ) : (
-          <span className="text-gray-400">Sin asignar</span>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Selector de periodo unificado */}
       <div className="w-full max-w-md mb-6">
