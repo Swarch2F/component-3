@@ -1,10 +1,34 @@
 import { GraphQLClient } from 'graphql-request';
+import { tokenService } from './tokenService';
 
-// Cambia esta URL por la de tu backend GraphQL
-const endpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:9000/graphql';
+// URL base para las peticiones GraphQL
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:9000';
 
-export const graphQLClient = new GraphQLClient(endpoint, {
+// Cliente GraphQL con manejo automático de tokens
+const client = new GraphQLClient(`${API_BASE}/graphql`, {
   headers: {
-    // Puedes agregar headers personalizados aquí si es necesario
+    'Content-Type': 'application/json',
+    ...tokenService.getAuthHeader()
   },
+  requestMiddleware: (request) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    if (token && request.headers) {
+      const headers = new Headers(request.headers);
+      headers.set('Authorization', `Bearer ${token}`);
+      request.headers = headers;
+    }
+    return request;
+  }
 });
+
+// Función para actualizar el header de autorización
+export const updateAuthHeader = () => {
+    const authHeader = tokenService.getAuthHeader();
+    if ('Authorization' in authHeader) {
+        client.setHeader('Authorization', authHeader.Authorization);
+    } else {
+        client.setHeader('Authorization', '');
+    }
+};
+
+export { client as graphQLClient };
