@@ -1,7 +1,7 @@
 import { GraphQLClient } from 'graphql-request';
 import { tokenService } from './tokenService';
 
-const client = new GraphQLClient('http://localhost:9000/graphql', {
+const client = new GraphQLClient('https://localhost/graphql', {
   headers: tokenService.getAuthHeader()
 });
 
@@ -229,4 +229,4 @@ export async function checkAuthStatus(): Promise<AuthStatus> {
             isAuthenticated: false
         };
     }
-} 
+}
