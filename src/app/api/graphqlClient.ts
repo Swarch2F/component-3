@@ -2,7 +2,7 @@ import { GraphQLClient } from 'graphql-request';
 import { tokenService } from './tokenService';
 
 // URL base para las peticiones GraphQL
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://localhost/graphql';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://localhost:444/graphql';
 
 // Cliente GraphQL con manejo automático de tokens
 const client = new GraphQLClient(`${API_BASE}/graphql`, {

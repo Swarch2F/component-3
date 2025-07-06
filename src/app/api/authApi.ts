@@ -1,7 +1,7 @@
 import { GraphQLClient } from 'graphql-request';
 import { tokenService } from './tokenService';
 
-const client = new GraphQLClient('https://localhost/graphql', {
+const client = new GraphQLClient('https://localhost:444/graphql', {
   headers: tokenService.getAuthHeader()
 });
 
