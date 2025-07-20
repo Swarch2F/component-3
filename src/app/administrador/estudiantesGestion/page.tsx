@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import DataContainer from "../../components/DataContainer";
 import { type Student } from "../../types/student";
 import {
@@ -17,6 +17,7 @@ export default function EstudiantesGestionPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [cursos, setCursos] = useState<Curso[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -25,58 +26,25 @@ export default function EstudiantesGestionPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string; nombre: string } | null>(null);
   const [search, setSearch] = useState("");
 
-  // Paginación remota (sin búsqueda)
-  const PAGE_SIZE = 15;
+  // Paginación para infinite scroll
   const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [totalEstudiantes, setTotalEstudiantes] = useState(0);
-  // Eliminar totalPages
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadingRef = useRef<HTMLDivElement>(null);
 
   // Filtrado frontend por nombre
   const filteredStudents = search.trim().length > 0
     ? students.filter(s => s.nombre.toLowerCase().includes(search.trim().toLowerCase()))
     : students;
 
-  // --- NUEVO: función reutilizable para traer todos los estudiantes ---
-  const fetchAllEstudiantes = async () => {
+  // Función para cargar la primera página y cursos
+  const fetchInitialData = async () => {
     setLoading(true);
     try {
       const cursosList: Curso[] = await getAllCursos();
       setCursos(cursosList);
-      let allEstudiantes: any[] = [];
-      let currentPage = 1;
-      let keepFetching = true;
-      while (keepFetching) {
-        const res: any = await getAllEstudiantes({ page: currentPage });
-        const estudiantesData = res.estudiantes || res;
-        const estudiantesList = estudiantesData.results || [];
-        allEstudiantes = allEstudiantes.concat(estudiantesList);
-        // Si 'next' es null, no hay más páginas
-        if (!estudiantesData.next) {
-          keepFetching = false;
-        } else {
-          currentPage++;
-        }
-      }
-      setTotalEstudiantes(allEstudiantes.length);
-      setStudents(
-        allEstudiantes.map((e: any) => {
-          let grado = "";
-          if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
-            grado = (e.curso as { nombre: string }).nombre;
-          } else {
-            const cursoObj = cursosList.find((c) => c.id === e.curso);
-            grado = cursoObj?.nombre || "";
-          }
-          return {
-            id: String(e.id),
-            nombre: e.nombreCompleto,
-            documento: e.documento,
-            nacimiento: e.fechaNacimiento,
-            acudiente: e.acudiente,
-            grado
-          };
-        })
-      );
+      await loadMoreEstudiantes(1, true);
     } catch (err) {
       setError("Error cargando los datos de estudiantes");
     } finally {
@@ -84,8 +52,77 @@ export default function EstudiantesGestionPage() {
     }
   };
 
+  // Función para cargar más estudiantes (infinite scroll)
+  const loadMoreEstudiantes = async (pageNum: number, isInitial: boolean = false) => {
+    if (loadingMore) return;
+    
+    setLoadingMore(true);
+    try {
+      const res: any = await getAllEstudiantes({ page: pageNum });
+      const estudiantesData = res.estudiantes || res;
+      const estudiantesList = estudiantesData.results || [];
+      
+      // Mapear los estudiantes con sus grados
+      const mappedEstudiantes = estudiantesList.map((e: any) => {
+        let grado = "";
+        if (e.curso && typeof e.curso === "object" && "nombre" in e.curso) {
+          grado = (e.curso as { nombre: string }).nombre;
+        } else {
+          const cursoObj = cursos.find((c) => c.id === e.curso);
+          grado = cursoObj?.nombre || "";
+        }
+        return {
+          id: String(e.id),
+          nombre: e.nombreCompleto,
+          documento: e.documento,
+          nacimiento: e.fechaNacimiento,
+          acudiente: e.acudiente,
+          grado
+        };
+      });
+
+      if (isInitial) {
+        setStudents(mappedEstudiantes);
+        setTotalEstudiantes(estudiantesData.count || 0);
+      } else {
+        setStudents(prev => [...prev, ...mappedEstudiantes]);
+      }
+
+      // Verificar si hay más páginas
+      setHasMore(!!estudiantesData.next);
+      setPage(pageNum + 1);
+    } catch (err) {
+      setError("Error cargando más estudiantes");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Callback para el observer del infinite scroll
+  const lastElementRef = useCallback((node: HTMLTableRowElement | null) => {
+    if (loadingMore) return;
+    
+    if (observerRef.current) observerRef.current.disconnect();
+    
+    observerRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadMoreEstudiantes(page);
+      }
+    });
+    
+    if (node) observerRef.current.observe(node);
+  }, [loadingMore, hasMore, page]);
+
+  // Función para refrescar todos los datos
+  const refreshData = async () => {
+    setStudents([]);
+    setPage(1);
+    setHasMore(true);
+    await fetchInitialData();
+  };
+
   useEffect(() => {
-    fetchAllEstudiantes();
+    fetchInitialData();
   }, []); // Solo al montar
 
   const handleEdit = (student: Student) => {
@@ -113,7 +150,7 @@ export default function EstudiantesGestionPage() {
     setShowEditModal(false);
     setEditStudent(null);
     // Refrescar todos los estudiantes
-    await fetchAllEstudiantes();
+    await refreshData();
   };
 
   const handleDelete = (id: string) => {
@@ -127,7 +164,7 @@ export default function EstudiantesGestionPage() {
     await deleteEstudiante(showDeleteConfirm.id);
     setShowDeleteConfirm(null);
     // Refrescar todos los estudiantes
-    await fetchAllEstudiantes();
+    await refreshData();
   };
 
   const cancelarEliminar = () => setShowDeleteConfirm(null);
@@ -146,7 +183,7 @@ export default function EstudiantesGestionPage() {
     setShowAddModal(false);
     setNewStudent({ nombre: "", documento: "", nacimiento: "", acudiente: "", grado: "" });
     // Refrescar todos los estudiantes
-    await fetchAllEstudiantes();
+    await refreshData();
   };
 
   return (
@@ -160,6 +197,9 @@ export default function EstudiantesGestionPage() {
             <div>
               <h1 className="text-3xl font-extrabold mb-1 title-modern">Estudiantes</h1>
               <p className="subtitle-modern text-base">Administra estudiantes: agregar, editar, eliminar.</p>
+              {totalEstudiantes > 0 && (
+                <p className="text-sm text-gray-600 mt-1">Total: {totalEstudiantes} estudiantes</p>
+              )}
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input
@@ -174,7 +214,7 @@ export default function EstudiantesGestionPage() {
               </button>
             </div>
           </div>
-          <DataContainer loading={loading} error={error} onRetry={() => window.location.reload()}>
+          <DataContainer loading={loading} error={error} onRetry={refreshData}>
             <div className="card-modern p-0 w-full" style={{ overflowX: 'auto' }}>
               <table className="w-full border-separate border-spacing-y-2" style={{ minWidth: 0 }}>
                 <thead>
@@ -188,8 +228,12 @@ export default function EstudiantesGestionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStudents.map((estudiante) => (
-                    <tr key={estudiante.id} className="hover:bg-[var(--color-gray)] transition">
+                  {filteredStudents.map((estudiante, index) => (
+                    <tr 
+                      key={estudiante.id} 
+                      className="hover:bg-[var(--color-gray)] transition"
+                      ref={index === filteredStudents.length - 1 ? lastElementRef : null}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap text-base font-medium">{estudiante.nombre}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-base">{estudiante.documento}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-base">{estudiante.nacimiento}</td>
@@ -203,8 +247,19 @@ export default function EstudiantesGestionPage() {
                   ))}
                 </tbody>
               </table>
-              {/* Controles de paginación */}
-              {/* Eliminados porque ahora se muestran todos los estudiantes */}
+              {/* Indicador de carga para infinite scroll */}
+              {loadingMore && (
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-gray-600">Cargando más estudiantes...</span>
+                </div>
+              )}
+              {/* Mensaje cuando no hay más datos */}
+              {!hasMore && students.length > 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  No hay más estudiantes para cargar
+                </div>
+              )}
             </div>
           </DataContainer>
         </div>
