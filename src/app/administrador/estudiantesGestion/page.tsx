@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import DataContainer from "../../components/DataContainer";
 import { type Student } from "../../types/student";
 import {
-  getAllEstudiantes,
-  getAllCursos,
+  getEstudiantesPage,
+  getCursosPage,
   createEstudiante,
   updateEstudiante,
   deleteEstudiante,
@@ -42,8 +42,8 @@ export default function EstudiantesGestionPage() {
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const cursosList: Curso[] = await getAllCursos();
-      setCursos(cursosList);
+      const cursosResponse = await getCursosPage(1);
+      setCursos(cursosResponse.cursos);
       await loadMoreEstudiantes(1, true);
     } catch (err) {
       setError("Error cargando los datos de estudiantes");
@@ -58,9 +58,8 @@ export default function EstudiantesGestionPage() {
     
     setLoadingMore(true);
     try {
-      const res: any = await getAllEstudiantes({ page: pageNum });
-      const estudiantesData = res.estudiantes || res;
-      const estudiantesList = estudiantesData.results || [];
+      const res = await getEstudiantesPage({ page: pageNum });
+      const estudiantesList = res.estudiantes || [];
       
       // Mapear los estudiantes con sus grados
       const mappedEstudiantes = estudiantesList.map((e: any) => {
@@ -83,13 +82,13 @@ export default function EstudiantesGestionPage() {
 
       if (isInitial) {
         setStudents(mappedEstudiantes);
-        setTotalEstudiantes(estudiantesData.count || 0);
+        setTotalEstudiantes(res.count || 0);
       } else {
         setStudents(prev => [...prev, ...mappedEstudiantes]);
       }
 
       // Verificar si hay más páginas
-      setHasMore(!!estudiantesData.next);
+      setHasMore(res.hasNext);
       setPage(pageNum + 1);
     } catch (err) {
       setError("Error cargando más estudiantes");

@@ -89,9 +89,64 @@ export async function getAllCursos() {
   }
 }
 
+// Nueva función que solo obtiene la primera página de cursos
+export async function getCursosPage(page: number = 1) {
+  try {
+    const res = await graphQLClient.request(
+      `query { cursos(search: "", ordering: "nombre", page: ${page}) { next results { id nombre codigo estudiantes { id nombreCompleto documento } } } }`
+    ) as { cursos: { next: any, results: Curso[] } };
+    
+    if (!res || !res.cursos || !Array.isArray(res.cursos.results)) {
+      console.error("Respuesta inesperada de cursos:", res);
+      throw new Error("Error al obtener cursos: respuesta inesperada");
+    }
+    
+    return {
+      cursos: res.cursos.results,
+      hasNext: !!res.cursos.next,
+      next: res.cursos.next
+    };
+  } catch (e) {
+    console.error("Error en getCursosPage:", e);
+    throw e;
+  }
+}
+
 export async function getAllEstudiantes({ search = "", ordering = "nombreCompleto", page = 1 } = {}) {
   const res = await graphQLClient.request(QUERY_LISTAR_ESTUDIANTES, { search, ordering, page }) as { estudiantes: { results: any[], count: number, next?: number, previous?: number } };
   return res.estudiantes;
+}
+
+// Nueva función más específica para obtener una página de estudiantes
+export async function getEstudiantesPage({ 
+  search = "", 
+  ordering = "nombreCompleto", 
+  page = 1 
+} = {}) {
+  try {
+    const res = await graphQLClient.request(QUERY_LISTAR_ESTUDIANTES, { 
+      search, 
+      ordering, 
+      page 
+    }) as { estudiantes: { results: any[], count: number, next?: number, previous?: number } };
+    
+    if (!res || !res.estudiantes || !Array.isArray(res.estudiantes.results)) {
+      console.error("Respuesta inesperada de estudiantes:", res);
+      throw new Error("Error al obtener estudiantes: respuesta inesperada");
+    }
+    
+    return {
+      estudiantes: res.estudiantes.results,
+      count: res.estudiantes.count,
+      hasNext: !!res.estudiantes.next,
+      hasPrevious: !!res.estudiantes.previous,
+      next: res.estudiantes.next,
+      previous: res.estudiantes.previous
+    };
+  } catch (e) {
+    console.error("Error en getEstudiantesPage:", e);
+    throw e;
+  }
 }
 
 export async function createEstudiante(data: Estudiante) {

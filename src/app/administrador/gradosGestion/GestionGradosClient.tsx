@@ -1,8 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import MenuAsignaturas, { Asignatura as AsignaturaMenu } from "./MenuAsignaturas";
 import { getAsignaturas } from "../../api/asignaturasApi";
-import { getAllCursos, createCurso, updateCurso, updateCursoParcial, deleteCurso, Curso, getAllEstudiantes, Estudiante as EstudianteApi } from "../../api/estudiantesCursos.api";
+import { getCursosPage, getEstudiantesPage, createCurso, updateCurso, updateCursoParcial, deleteCurso, Curso, Estudiante as EstudianteApi } from "../../api/estudiantesCursos.api";
 import { getCalificaciones, registrarCalificacion } from "../../api/calificacionesApi";
 
 // Definir tipos para los datos
@@ -49,9 +49,24 @@ export default function GestionGradosClient() {
   const [estudiantesPorGrado, setEstudiantesPorGrado] = useState<Record<number | string, EstudianteApi[]>>({});
   const [periodo, setPeriodo] = useState<string>("");
   const [calificaciones, setCalificaciones] = useState<any[]>([]);
-  const [loadingCalificaciones, setLoadingCalificaciones] = useState(false);  const [periodoError, setPeriodoError] = useState<string>("");
+  const [loadingCalificaciones, setLoadingCalificaciones] = useState(false);
+  const [periodoError, setPeriodoError] = useState<string>("");
   const [errorGrado, setErrorGrado] = useState<string>("");
   const [anoSeleccionado, setAnoSeleccionado] = useState<string>("");
+
+  // Estados para infinite scroll de grados
+  const [cursosPage, setCursosPage] = useState(1);
+  const [hasMoreCursos, setHasMoreCursos] = useState(true);
+  const [loadingMoreCursos, setLoadingMoreCursos] = useState(false);
+
+  // Estados para infinite scroll de estudiantes
+  const [estudiantesPage, setEstudiantesPage] = useState(1);
+  const [hasMoreEstudiantes, setHasMoreEstudiantes] = useState(true);
+  const [loadingMoreEstudiantes, setLoadingMoreEstudiantes] = useState(false);
+
+  // Referencias para infinite scroll
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const estudiantesObserverRef = useRef<IntersectionObserver | null>(null);
 
   // Opciones de periodo (ahora simplificadas: año-periodo)
   const periodosDisponibles = [];
@@ -61,25 +76,140 @@ export default function GestionGradosClient() {
     }
   }
 
+  // Función para cargar más cursos (infinite scroll)
+  const loadMoreCursos = async (pageNum: number, isInitial: boolean = false) => {
+    if (loadingMoreCursos) return;
+    
+    setLoadingMoreCursos(true);
+    try {
+      const res = await getCursosPage(pageNum);
+      const cursosList = res.cursos || [];
+      
+      const mappedCursos = cursosList.map(c => ({ 
+        id: c.id!, 
+        nombre: c.nombre, 
+        estudiantes: [], 
+        asignaturas: [] 
+      }));
+
+      if (isInitial) {
+        setGrados(mappedCursos);
+      } else {
+        setGrados(prev => [...prev, ...mappedCursos]);
+      }
+
+      // Asociar estudiantes a cada curso usando el campo estudiantes de cada curso
+      const porGrado: Record<number | string, EstudianteApi[]> = {};
+      cursosList.forEach(curso => {
+        porGrado[curso.id!] = (curso.estudiantes || []);
+      });
+
+      if (isInitial) {
+        setEstudiantesPorGrado(porGrado);
+      } else {
+        setEstudiantesPorGrado(prev => ({ ...prev, ...porGrado }));
+      }
+
+      setHasMoreCursos(res.hasNext);
+      setCursosPage(pageNum + 1);
+    } catch (err) {
+      console.error("Error cargando más cursos:", err);
+    } finally {
+      setLoadingMoreCursos(false);
+    }
+  };
+
+  // Función para cargar más estudiantes (infinite scroll)
+  const loadMoreEstudiantes = async (pageNum: number) => {
+    if (loadingMoreEstudiantes) return;
+    
+    setLoadingMoreEstudiantes(true);
+    try {
+      const res = await getEstudiantesPage({ page: pageNum });
+      const estudiantesList = res.estudiantes || [];
+      
+      // Asociar estudiantes a sus grados correspondientes
+      const porGrado: Record<number | string, EstudianteApi[]> = {};
+      estudiantesList.forEach(est => {
+        const cursoId = est.curso;
+        if (!porGrado[cursoId]) {
+          porGrado[cursoId] = [];
+        }
+        porGrado[cursoId].push(est);
+      });
+
+      setEstudiantesPorGrado(prev => {
+        const updated = { ...prev };
+        Object.keys(porGrado).forEach(cursoId => {
+          if (!updated[cursoId]) {
+            updated[cursoId] = [];
+          }
+          updated[cursoId] = [...updated[cursoId], ...porGrado[cursoId]];
+        });
+        return updated;
+      });
+
+      setHasMoreEstudiantes(res.hasNext);
+      setEstudiantesPage(pageNum + 1);
+    } catch (err) {
+      console.error("Error cargando más estudiantes:", err);
+    } finally {
+      setLoadingMoreEstudiantes(false);
+    }
+  };
+
+  // Callback para el observer del infinite scroll de grados
+  const lastGradoRef = useCallback((node: HTMLDivElement | null) => {
+    if (loadingMoreCursos) return;
+    
+    if (observerRef.current) observerRef.current.disconnect();
+    
+    observerRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMoreCursos) {
+        loadMoreCursos(cursosPage);
+      }
+    });
+    
+    if (node) observerRef.current.observe(node);
+  }, [loadingMoreCursos, hasMoreCursos, cursosPage]);
+
+  // Callback para el observer del infinite scroll de estudiantes
+  const lastEstudianteRef = useCallback((node: HTMLTableRowElement | null) => {
+    if (loadingMoreEstudiantes) return;
+    
+    if (estudiantesObserverRef.current) estudiantesObserverRef.current.disconnect();
+    
+    estudiantesObserverRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMoreEstudiantes) {
+        loadMoreEstudiantes(estudiantesPage);
+      }
+    });
+    
+    if (node) estudiantesObserverRef.current.observe(node);
+  }, [loadingMoreEstudiantes, hasMoreEstudiantes, estudiantesPage]);
+
+  // Función para refrescar todos los datos
+  const refreshData = async () => {
+    setGrados([]);
+    setEstudiantesPorGrado({});
+    setCursosPage(1);
+    setEstudiantesPage(1);
+    setHasMoreCursos(true);
+    setHasMoreEstudiantes(true);
+    await loadMoreCursos(1, true);
+  };
+
   useEffect(() => {
-    async function fetchGradosYEstudiantes() {
+    async function fetchInitialData() {
       setLoadingGrados(true);
       try {
-        const cursos: Curso[] = await getAllCursos();
-        // CORRECCIÓN: obtener estudiantes como array
-        const estudiantesRes = await getAllEstudiantes();
-        const estudiantes: EstudianteApi[] = estudiantesRes.results || [];
-        setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
-        // Asociar estudiantes a cada grado usando el campo estudiantes de cada curso
-        const porGrado: Record<number | string, EstudianteApi[]> = {};
-        cursos.forEach(curso => {
-          porGrado[curso.id!] = (curso.estudiantes || []);
-        });
-        setEstudiantesPorGrado(porGrado);
+        await loadMoreCursos(1, true);
+        await loadMoreEstudiantes(1);
       } finally {
         setLoadingGrados(false);
       }
     }
+    
     async function fetchAsignaturas() {
       const res = await getAsignaturas();
       const asignaturas = (res as any).asignaturas as { id: string; nombre: string; profesorIds?: string[] }[];
@@ -92,7 +222,8 @@ export default function GestionGradosClient() {
       });
       setProfesoresPorAsignatura(profMap);
     }
-    fetchGradosYEstudiantes();
+    
+    fetchInitialData();
     fetchAsignaturas();
   }, []);
 
@@ -164,8 +295,7 @@ export default function GestionGradosClient() {
       .toUpperCase();
     try {
       await createCurso({ nombre: nuevoGrado, codigo });
-      const cursos: Curso[] = await getAllCursos();
-      setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
+      await refreshData();
       setNuevoGrado("");
     } catch (e: any) {
       setErrorGrado(e.message || "Error al crear grado");
@@ -178,12 +308,12 @@ export default function GestionGradosClient() {
     if (!grado) return;
     setShowConfirm({ tipo: 'grado', id, nombre: grado.nombre });
   };
+  
   const confirmarEliminar = async () => {
     if (!showConfirm) return;
     if (showConfirm.tipo === 'grado') {
       await deleteCurso(showConfirm.id);
-      const cursos: Curso[] = await getAllCursos();
-      setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
+      await refreshData();
       if (gradoSeleccionado && gradoSeleccionado.id === showConfirm.id) setGradoSeleccionado(null);
     } else if (showConfirm.tipo === 'asignatura' && gradoSeleccionado) {
       setGrados(grados.map(g =>
@@ -198,6 +328,7 @@ export default function GestionGradosClient() {
     }
     setShowConfirm(null);
   };
+  
   const cancelarEliminar = () => setShowConfirm(null);
 
   // Editar grado
@@ -205,11 +336,11 @@ export default function GestionGradosClient() {
     setEditando(grado.id as number);
     setNombreEditado(grado.nombre);
   };
+  
   const guardarEdicion = async (id: number) => {
     // Usar la mutación parcial para solo actualizar el nombre
     await updateCursoParcial(id, nombreEditado);
-    const cursos: Curso[] = await getAllCursos();
-    setGrados(cursos.map(c => ({ id: c.id!, nombre: c.nombre, estudiantes: [], asignaturas: [] })));
+    await refreshData();
     setEditando(null);
     setNombreEditado("");
   };
@@ -258,6 +389,7 @@ export default function GestionGradosClient() {
       asignaturas: Object.values(asignaturasMap)
     } : null);
   };
+  
   const handleAnoChange = (ano: string) => {
     setAnoSeleccionado(ano);
     // Si ya hay un periodo seleccionado, actualiza el periodo completo
@@ -299,9 +431,13 @@ export default function GestionGradosClient() {
           <div className="w-full md:w-1/3">
             <h2 className="font-bold text-lg mb-4">Grados</h2>
             <div className="space-y-2">
-              {grados.map((grado) => (
-                <div key={grado.id} className={`flex items-center justify-between rounded px-3 py-2 cursor-pointer transition border ${gradoSeleccionado && gradoSeleccionado.id === grado.id ? 'bg-primary-100 border-primary-400' : 'bg-white/10 border-white/20'}`}
-                  onClick={() => setGradoSeleccionado(grado)}>
+              {grados.map((grado, index) => (
+                <div 
+                  key={grado.id} 
+                  className={`flex items-center justify-between rounded px-3 py-2 cursor-pointer transition border ${gradoSeleccionado && gradoSeleccionado.id === grado.id ? 'bg-primary-100 border-primary-400' : 'bg-white/10 border-white/20'}`}
+                  onClick={() => setGradoSeleccionado(grado)}
+                  ref={index === grados.length - 1 ? lastGradoRef : null}
+                >
                   {editando === grado.id ? (
                     <>
                       <input value={nombreEditado} onChange={e => setNombreEditado(e.target.value)} className="input-modern mr-2" />
@@ -325,6 +461,19 @@ export default function GestionGradosClient() {
                   )}
                 </div>
               ))}
+              {/* Indicador de carga para infinite scroll de grados */}
+              {loadingMoreCursos && (
+                <div className="flex justify-center py-2">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-gray-600 text-sm">Cargando más grados...</span>
+                </div>
+              )}
+              {/* Mensaje cuando no hay más grados */}
+              {!hasMoreCursos && grados.length > 0 && (
+                <div className="text-center py-2 text-gray-500 text-sm">
+                  No hay más grados para cargar
+                </div>
+              )}
             </div>
             <div className="flex mt-4 gap-2">
               <input value={nuevoGrado} onChange={e => setNuevoGrado(e.target.value)} placeholder="Nuevo grado" className="input-modern flex-1" />
@@ -383,7 +532,10 @@ export default function GestionGradosClient() {
                         <tr><td colSpan={2 + gradoSeleccionado.asignaturas.length} className="text-center py-4">Cargando calificaciones...</td></tr>
                       ) : (
                         gradoSeleccionado && (estudiantesPorGrado[gradoSeleccionado.id] || []).map((est, i) => (
-                          <tr key={est.id}>
+                          <tr 
+                            key={est.id}
+                            ref={i === (estudiantesPorGrado[gradoSeleccionado.id] || []).length - 1 ? lastEstudianteRef : null}
+                          >
                             <td className="px-2 py-1 border font-semibold">{est.nombreCompleto}</td>
                             <td className="px-2 py-1 border">{est.documento}</td>
                             {gradoSeleccionado.asignaturas.map((asig) => {
@@ -402,6 +554,25 @@ export default function GestionGradosClient() {
                       )}
                     </tbody>
                   </table>
+                  {/* Indicador de carga para infinite scroll de estudiantes */}
+                  {loadingMoreEstudiantes && (
+                    <tr>
+                      <td colSpan={2 + (gradoSeleccionado?.asignaturas.length || 0)} className="text-center py-2">
+                        <div className="flex justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                          <span className="ml-2 text-gray-600 text-sm">Cargando más estudiantes...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {/* Mensaje cuando no hay más estudiantes */}
+                  {!hasMoreEstudiantes && (estudiantesPorGrado[gradoSeleccionado?.id || ''] || []).length > 0 && (
+                    <tr>
+                      <td colSpan={2 + (gradoSeleccionado?.asignaturas.length || 0)} className="text-center py-2 text-gray-500 text-sm">
+                        No hay más estudiantes para cargar
+                      </td>
+                    </tr>
+                  )}
                 </div>
                 <h2 className="font-bold text-lg mb-2 mt-8">Asignaturas y Profesores</h2>
                 <MenuAsignaturas
