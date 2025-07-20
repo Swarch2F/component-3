@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./modern.css";
+import { updateClientConfig } from './api/graphqlClient';
+import { updateAuthClientConfig } from './api/authApi';
+import React from 'react';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,11 +21,31 @@ export const metadata: Metadata = {
   description: "Gestión de calificaciones moderna y eficiente",
 };
 
+// Función para inicializar la configuración
+async function initializeConfig() {
+  if (typeof window !== 'undefined') {
+    try {
+      await Promise.all([
+        updateClientConfig(),
+        updateAuthClientConfig()
+      ]);
+      console.log('Configuration initialized successfully');
+    } catch (error) {
+      console.error('Error initializing configuration:', error);
+    }
+  }
+}
+
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
+  // Inicializar configuración cuando el componente se monta
+  React.useEffect(() => {
+    initializeConfig();
+  }, []);
+
   return (
     <html lang="en">
       <body

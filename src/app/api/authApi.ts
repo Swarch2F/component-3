@@ -1,10 +1,31 @@
 import { GraphQLClient } from 'graphql-request';
 import { tokenService } from './tokenService';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+// URL base para las peticiones GraphQL - se obtiene dinámicamente
+let API_BASE = 'https://localhost:444/graphql'; // valor por defecto para desarrollo
+
+// Función para obtener la configuración dinámica
+async function getConfig() {
+  try {
+    const response = await fetch('/api/config');
+    const config = await response.json();
+    API_BASE = config.apiBase;
+    console.log('Auth API Config loaded:', config);
+  } catch (error) {
+    console.warn('Could not load config for auth API, using default:', error);
+  }
+}
+
+// Cliente GraphQL con configuración dinámica
 const client = new GraphQLClient(API_BASE, {
   headers: tokenService.getAuthHeader()
 });
+
+// Función para actualizar el cliente con nueva configuración
+export const updateAuthClientConfig = async () => {
+  await getConfig();
+  client.setEndpoint(API_BASE);
+};
 
 // --- Queries ---
 export const GET_AUTH_STATUS = `

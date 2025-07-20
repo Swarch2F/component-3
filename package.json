@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -p 3001",
+    "dev": "next dev",
+    "dev:local": "NEXT_PUBLIC_API_BASE=https://localhost:444/graphql next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
