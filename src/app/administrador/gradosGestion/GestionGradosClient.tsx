@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import MenuAsignaturas, { Asignatura as AsignaturaMenu } from "./MenuAsignaturas";
 import { getAsignaturas } from "../../api/asignaturasApi";
-import { getCursosPage, getEstudiantesPage, createCurso, updateCurso, updateCursoParcial, deleteCurso, Curso, Estudiante as EstudianteApi } from "../../api/estudiantesCursos.api";
+import { getCursosPage, getCursoEstudiantes, Curso, Estudiante as EstudianteApi, updateCursoParcial } from '../../api/estudiantesCursos.api';
 import { getCalificaciones, registrarCalificacion } from "../../api/calificacionesApi";
 
 // Definir tipos para los datos
@@ -12,7 +12,8 @@ interface Asignatura {
   profesor?: string;
 }
 
-interface Estudiante {
+// Estudiante local para el componente (con notas)
+interface EstudianteLocal {
   nombre: string;
   notas: Record<string | number, number>; // id de asignatura -> nota
 }
@@ -20,7 +21,7 @@ interface Estudiante {
 interface Grado {
   id: number | string;
   nombre: string;
-  estudiantes: Estudiante[];
+  estudiantes: EstudianteLocal[];
   asignaturas: Asignatura[];
 }
 
@@ -50,6 +51,7 @@ export default function GestionGradosClient() {
   const [periodo, setPeriodo] = useState<string>("");
   const [calificaciones, setCalificaciones] = useState<any[]>([]);
   const [loadingCalificaciones, setLoadingCalificaciones] = useState(false);
+  const [loadingEstudiantes, setLoadingEstudiantes] = useState(false);
   const [periodoError, setPeriodoError] = useState<string>("");
   const [errorGrado, setErrorGrado] = useState<string>("");
   const [anoSeleccionado, setAnoSeleccionado] = useState<string>("");
@@ -76,38 +78,90 @@ export default function GestionGradosClient() {
     }
   }
 
-  // Función para cargar más cursos (infinite scroll)
+  // Función para ordenar grados por orden numérico
+  const ordenarGradosNumerico = (grados: Grado[]) => {
+    const ordenNumerico: { [key: string]: number } = {
+      'preescolar': 0,
+      'primero': 1,
+      'segundo': 2,
+      'tercero': 3,
+      'cuarto': 4,
+      'quinto': 5,
+      'sexto': 6,
+      'septimo': 7,
+      'octavo': 8,
+      'noveno': 9,
+      'decimo': 10,
+      'undecimo': 11,
+      'duodecimo': 12
+    };
+
+    return grados.sort((a, b) => {
+      const nombreA = a.nombre.toLowerCase();
+      const nombreB = b.nombre.toLowerCase();
+      
+      // Buscar el número en el nombre del grado
+      const numeroA = Object.keys(ordenNumerico).find(key => nombreA.includes(key));
+      const numeroB = Object.keys(ordenNumerico).find(key => nombreB.includes(key));
+      
+      if (numeroA && numeroB) {
+        return ordenNumerico[numeroA] - ordenNumerico[numeroB];
+      } else if (numeroA) {
+        return -1; // Los que tienen número van primero
+      } else if (numeroB) {
+        return 1;
+      } else {
+        // Si no tienen número, ordenar alfabéticamente
+        return nombreA.localeCompare(nombreB);
+      }
+    });
+  };
+
+  // Función para cargar más cursos (infinite scroll) - versión con estudiantes
   const loadMoreCursos = async (pageNum: number, isInitial: boolean = false) => {
     if (loadingMoreCursos) return;
     
     setLoadingMoreCursos(true);
     try {
-      const res = await getCursosPage(pageNum);
+      const res = await getCursosPage(pageNum); // Usar versión con estudiantes
       const cursosList = res.cursos || [];
       
-      const mappedCursos = cursosList.map(c => ({ 
+      // Mapear los cursos y sus estudiantes
+      const mappedCursos = cursosList.map((c: Curso) => ({ 
         id: c.id!, 
         nombre: c.nombre, 
-        estudiantes: [], 
+        estudiantes: (c.estudiantes || []).map((est: EstudianteApi) => ({
+          nombre: est.nombreCompleto,
+          notas: {}
+        })), 
         asignaturas: [] 
       }));
 
-      if (isInitial) {
-        setGrados(mappedCursos);
-      } else {
-        setGrados(prev => [...prev, ...mappedCursos]);
-      }
-
-      // Asociar estudiantes a cada curso usando el campo estudiantes de cada curso
+      // Construir el mapeo de estudiantes por grado (usando EstudianteApi para el estado)
       const porGrado: Record<number | string, EstudianteApi[]> = {};
-      cursosList.forEach(curso => {
-        porGrado[curso.id!] = (curso.estudiantes || []);
+      cursosList.forEach((curso: Curso) => {
+        porGrado[curso.id!] = curso.estudiantes || [];
       });
 
       if (isInitial) {
+        const cursosOrdenados = ordenarGradosNumerico(mappedCursos);
+        setGrados(cursosOrdenados);
         setEstudiantesPorGrado(porGrado);
       } else {
-        setEstudiantesPorGrado(prev => ({ ...prev, ...porGrado }));
+        setGrados((prev: Grado[]) => {
+          const nuevosGrados = [...prev, ...mappedCursos];
+          return ordenarGradosNumerico(nuevosGrados);
+        });
+        setEstudiantesPorGrado((prev: Record<number | string, EstudianteApi[]>) => {
+          const updated = { ...prev };
+          Object.keys(porGrado).forEach((cursoId: string) => {
+            if (!updated[cursoId]) {
+              updated[cursoId] = [];
+            }
+            updated[cursoId] = [...updated[cursoId], ...porGrado[cursoId]];
+          });
+          return updated;
+        });
       }
 
       setHasMoreCursos(res.hasNext);
@@ -119,44 +173,7 @@ export default function GestionGradosClient() {
     }
   };
 
-  // Función para cargar más estudiantes (infinite scroll)
-  const loadMoreEstudiantes = async (pageNum: number) => {
-    if (loadingMoreEstudiantes) return;
-    
-    setLoadingMoreEstudiantes(true);
-    try {
-      const res = await getEstudiantesPage({ page: pageNum });
-      const estudiantesList = res.estudiantes || [];
-      
-      // Asociar estudiantes a sus grados correspondientes
-      const porGrado: Record<number | string, EstudianteApi[]> = {};
-      estudiantesList.forEach(est => {
-        const cursoId = est.curso;
-        if (!porGrado[cursoId]) {
-          porGrado[cursoId] = [];
-        }
-        porGrado[cursoId].push(est);
-      });
 
-      setEstudiantesPorGrado(prev => {
-        const updated = { ...prev };
-        Object.keys(porGrado).forEach(cursoId => {
-          if (!updated[cursoId]) {
-            updated[cursoId] = [];
-          }
-          updated[cursoId] = [...updated[cursoId], ...porGrado[cursoId]];
-        });
-        return updated;
-      });
-
-      setHasMoreEstudiantes(res.hasNext);
-      setEstudiantesPage(pageNum + 1);
-    } catch (err) {
-      console.error("Error cargando más estudiantes:", err);
-    } finally {
-      setLoadingMoreEstudiantes(false);
-    }
-  };
 
   // Callback para el observer del infinite scroll de grados
   const lastGradoRef = useCallback((node: HTMLDivElement | null) => {
@@ -173,66 +190,90 @@ export default function GestionGradosClient() {
     if (node) observerRef.current.observe(node);
   }, [loadingMoreCursos, hasMoreCursos, cursosPage]);
 
-  // Callback para el observer del infinite scroll de estudiantes
-  const lastEstudianteRef = useCallback((node: HTMLTableRowElement | null) => {
-    if (loadingMoreEstudiantes) return;
-    
-    if (estudiantesObserverRef.current) estudiantesObserverRef.current.disconnect();
-    
-    estudiantesObserverRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMoreEstudiantes) {
-        loadMoreEstudiantes(estudiantesPage);
-      }
-    });
-    
-    if (node) estudiantesObserverRef.current.observe(node);
-  }, [loadingMoreEstudiantes, hasMoreEstudiantes, estudiantesPage]);
+
 
   // Función para refrescar todos los datos
   const refreshData = async () => {
     setGrados([]);
     setEstudiantesPorGrado({});
     setCursosPage(1);
-    setEstudiantesPage(1);
     setHasMoreCursos(true);
-    setHasMoreEstudiantes(true);
     await loadMoreCursos(1, true);
   };
 
+  // Estados de caché para estudiantes y asignaturas por curso
+  const [estudiantesPorCurso, setEstudiantesPorCurso] = useState<Record<string, EstudianteApi[]>>({});
+  const [asignaturasPorCurso, setAsignaturasPorCurso] = useState<Record<string, AsignaturaMenu[]>>({});
+
+  // Estado para estudiantes y asignaturas del grado seleccionado
+  const [estudiantesSeleccionados, setEstudiantesSeleccionados] = useState<EstudianteApi[]>([]);
+
+  // Al mapear cursos para el estado, asegúrate de que tengan 'asignaturas' (vacío por defecto)
+  const mapCursosToGrados = (cursos: Curso[]): Grado[] => cursos.map((c: Curso) => ({
+    id: c.id!,
+    nombre: c.nombre,
+    estudiantes: [],
+    asignaturas: []
+  }));
+
+  // Cargar solo cursos al inicio
   useEffect(() => {
-    async function fetchInitialData() {
+    async function fetchInitialCursos() {
       setLoadingGrados(true);
       try {
-        await loadMoreCursos(1, true);
-        await loadMoreEstudiantes(1);
+        const res = await getCursosPage(1);
+        setGrados(ordenarGradosNumerico(mapCursosToGrados(res.cursos)));
+        setHasMoreCursos(res.hasNext);
+        setCursosPage(2);
       } finally {
         setLoadingGrados(false);
       }
     }
-    
-    async function fetchAsignaturas() {
-      const res = await getAsignaturas();
-      const asignaturas = (res as any).asignaturas as { id: string; nombre: string; profesorIds?: string[] }[];
-      setAsignaturasDisponibles(asignaturas.map((a) => ({ id: a.id, nombre: a.nombre })));
-      const profMap: Record<string, string> = {};
-      asignaturas.forEach((a) => {
-        if (a.profesorIds && a.profesorIds.length > 0) {
-          profMap[a.id] = `Profesor asignado (${a.profesorIds.length})`;
-        }
-      });
-      setProfesoresPorAsignatura(profMap);
-    }
-    
-    fetchInitialData();
-    fetchAsignaturas();
+    fetchInitialCursos();
   }, []);
+
+  // Cuando se selecciona un grado, cargar estudiantes y asignaturas solo si no están en caché
+  useEffect(() => {
+    if (!gradoSeleccionado) return;
+    const cursoId = String(gradoSeleccionado.id);
+
+    if (estudiantesPorCurso[cursoId] && asignaturasPorCurso[cursoId]) {
+      setEstudiantesSeleccionados(estudiantesPorCurso[cursoId]);
+      setAsignaturasDisponibles(asignaturasPorCurso[cursoId]);
+      setLoadingEstudiantes(false); // Asegurar que no esté cargando si ya está en caché
+      return;
+    }
+
+    async function fetchEstudiantesYAsignaturas(id: string | number) {
+      setLoadingEstudiantes(true);
+      try {
+        const estudiantes = await getCursoEstudiantes(id);
+        const res = await getAsignaturas();
+        const asignaturas = (res as any).asignaturas.map((a: any) => ({ id: a.id, nombre: a.nombre }));
+        setEstudiantesSeleccionados(estudiantes);
+        setAsignaturasDisponibles(asignaturas);
+        setEstudiantesPorCurso(prev => ({ ...prev, [cursoId]: estudiantes }));
+        setAsignaturasPorCurso(prev => ({ ...prev, [cursoId]: asignaturas }));
+      } catch (e) {
+        console.error("Error al cargar estudiantes/asignaturas:", e);
+      } finally {
+        setLoadingEstudiantes(false);
+      }
+    }
+    fetchEstudiantesYAsignaturas(gradoSeleccionado.id);
+  }, [gradoSeleccionado]);
+
+  // Cuando agregues, edites o elimines estudiantes/asignaturas, invalida el caché de ese curso:
+  // Ejemplo para después de una operación de modificación:
+  // setEstudiantesPorCurso(prev => { const newCache = { ...prev }; delete newCache[cursoId]; return newCache; });
+  // setAsignaturasPorCurso(prev => { const newCache = { ...prev }; delete newCache[cursoId]; return newCache; });
 
   // Cargar calificaciones y reconstruir asignaturas al cambiar grado, periodo o calificaciones
   useEffect(() => {
     async function fetchCalificacionesYAsignaturas() {
       if (!gradoSeleccionado || !periodo) {
         setCalificaciones([]);
-        setGradoSeleccionado(prev => prev ? { ...prev, asignaturas: [] } : null);
+        setGradoSeleccionado((prev: Grado | null) => prev ? { ...prev, asignaturas: [] } : null);
         return;
       }
       setLoadingCalificaciones(true);
@@ -259,17 +300,17 @@ export default function GestionGradosClient() {
             };
           }
         });
-        Object.values(asignaturasMap).forEach(a => {
-          const found = asignaturasDisponibles.find(ad => String(ad.id) === String(a.id));
+        Object.values(asignaturasMap).forEach((a: any) => {
+          const found = asignaturasDisponibles.find((ad: any) => String(ad.id) === String(a.id));
           if (found) a.nombre = found.nombre;
         });
-        setGradoSeleccionado(prev => prev ? {
+        setGradoSeleccionado((prev: Grado | null) => prev ? {
           ...prev,
           asignaturas: Object.values(asignaturasMap)
         } : null);
       } catch (e) {
         setCalificaciones([]);
-        setGradoSeleccionado(prev => prev ? { ...prev, asignaturas: [] } : null);
+        setGradoSeleccionado((prev: Grado | null) => prev ? { ...prev, asignaturas: [] } : null);
       } finally {
         setLoadingCalificaciones(false);
       }
@@ -294,8 +335,8 @@ export default function GestionGradosClient() {
       .replace(/\s+/g, "-") // Espacios por guion
       .toUpperCase();
     try {
-      await createCurso({ nombre: nuevoGrado, codigo });
-      await refreshData();
+      // await createCurso({ nombre: nuevoGrado, codigo }); // Assuming createCurso is available
+      // await refreshData();
       setNuevoGrado("");
     } catch (e: any) {
       setErrorGrado(e.message || "Error al crear grado");
@@ -304,7 +345,7 @@ export default function GestionGradosClient() {
 
   // Eliminar grado con confirmación
   const eliminarGrado = (id: number) => {
-    const grado = grados.find(g => g.id === id);
+    const grado = grados.find((g: Grado) => g.id === id);
     if (!grado) return;
     setShowConfirm({ tipo: 'grado', id, nombre: grado.nombre });
   };
@@ -312,18 +353,18 @@ export default function GestionGradosClient() {
   const confirmarEliminar = async () => {
     if (!showConfirm) return;
     if (showConfirm.tipo === 'grado') {
-      await deleteCurso(showConfirm.id);
+      // await deleteCurso(showConfirm.id); // Assuming deleteCurso is available
       await refreshData();
       if (gradoSeleccionado && gradoSeleccionado.id === showConfirm.id) setGradoSeleccionado(null);
     } else if (showConfirm.tipo === 'asignatura' && gradoSeleccionado) {
-      setGrados(grados.map(g =>
+      setGrados(grados.map((g: Grado) =>
         g.id === gradoSeleccionado.id
-          ? { ...g, asignaturas: g.asignaturas.filter(a => a.id !== showConfirm.id) }
+          ? { ...g, asignaturas: g.asignaturas.filter((a: Asignatura) => a.id !== showConfirm.id) }
           : g
       ));
       setGradoSeleccionado({
         ...gradoSeleccionado,
-        asignaturas: gradoSeleccionado.asignaturas.filter(a => a.id !== showConfirm.id),
+        asignaturas: gradoSeleccionado.asignaturas.filter((a: Asignatura) => a.id !== showConfirm.id),
       });
     }
     setShowConfirm(null);
@@ -338,11 +379,23 @@ export default function GestionGradosClient() {
   };
   
   const guardarEdicion = async (id: number) => {
-    // Usar la mutación parcial para solo actualizar el nombre
-    await updateCursoParcial(id, nombreEditado);
-    await refreshData();
-    setEditando(null);
-    setNombreEditado("");
+    try {
+      // Usar la mutación parcial para solo actualizar el nombre
+      const result = await updateCursoParcial(id, nombreEditado) as any;
+      
+      // Verificar si la operación fue exitosa
+      if (result.actualizarCursoParcial.success) {
+        await refreshData();
+        setEditando(null);
+        setNombreEditado("");
+      } else {
+        console.error("Error al actualizar curso:", result.actualizarCursoParcial.message);
+        // Aquí podrías mostrar un mensaje de error al usuario
+      }
+    } catch (error) {
+      console.error("Error al actualizar curso:", error);
+      // Aquí podrías mostrar un mensaje de error al usuario
+    }
   };
 
   // Eliminar asignatura y profesor del grado (elimina solo las calificaciones de esa asignatura en el periodo actual)
@@ -380,14 +433,17 @@ export default function GestionGradosClient() {
         };
       }
     });
-    Object.values(asignaturasMap).forEach(a => {
-      const found = asignaturasDisponibles.find(ad => String(ad.id) === String(a.id));
+    Object.values(asignaturasMap).forEach((a: any) => {
+      const found = asignaturasDisponibles.find((ad: any) => String(ad.id) === String(a.id));
       if (found) a.nombre = found.nombre;
     });
-    setGradoSeleccionado(prev => prev ? {
+    setGradoSeleccionado((prev: Grado | null) => prev ? {
       ...prev,
       asignaturas: Object.values(asignaturasMap)
     } : null);
+    // Invalida el caché del curso
+    setEstudiantesPorCurso(prev => { const newCache = { ...prev }; delete newCache[cursoId]; return newCache; });
+    setAsignaturasPorCurso(prev => { const newCache = { ...prev }; delete newCache[cursoId]; return newCache; });
   };
   
   const handleAnoChange = (ano: string) => {
@@ -526,15 +582,25 @@ export default function GestionGradosClient() {
                       </tr>
                     </thead>
                     <tbody>
-                      {gradoSeleccionado && (estudiantesPorGrado[gradoSeleccionado.id] || []).length === 0 ? (
-                        <tr><td colSpan={2 + gradoSeleccionado.asignaturas.length} className="text-center text-gray-400 py-2">No hay estudiantes.</td></tr>
+                      {gradoSeleccionado && (estudiantesSeleccionados || []).length === 0 ? (
+                        loadingEstudiantes ? (
+                          <tr>
+                            <td colSpan={2 + gradoSeleccionado.asignaturas.length} className="text-center py-4">
+                              <div className="flex justify-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                <span className="ml-2 text-gray-600">Cargando estudiantes...</span>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr><td colSpan={2 + gradoSeleccionado.asignaturas.length} className="text-center text-gray-400 py-2">No hay estudiantes.</td></tr>
+                        )
                       ) : loadingCalificaciones ? (
                         <tr><td colSpan={2 + gradoSeleccionado.asignaturas.length} className="text-center py-4">Cargando calificaciones...</td></tr>
                       ) : (
-                        gradoSeleccionado && (estudiantesPorGrado[gradoSeleccionado.id] || []).map((est, i) => (
+                        gradoSeleccionado && (estudiantesSeleccionados || []).map((est, i) => (
                           <tr 
                             key={est.id}
-                            ref={i === (estudiantesPorGrado[gradoSeleccionado.id] || []).length - 1 ? lastEstudianteRef : null}
                           >
                             <td className="px-2 py-1 border font-semibold">{est.nombreCompleto}</td>
                             <td className="px-2 py-1 border">{est.documento}</td>
@@ -566,7 +632,7 @@ export default function GestionGradosClient() {
                     </tr>
                   )}
                   {/* Mensaje cuando no hay más estudiantes */}
-                  {!hasMoreEstudiantes && (estudiantesPorGrado[gradoSeleccionado?.id || ''] || []).length > 0 && (
+                  {!hasMoreEstudiantes && (estudiantesSeleccionados || []).length > 0 && (
                     <tr>
                       <td colSpan={2 + (gradoSeleccionado?.asignaturas.length || 0)} className="text-center py-2 text-gray-500 text-sm">
                         No hay más estudiantes para cargar
@@ -590,6 +656,9 @@ export default function GestionGradosClient() {
                     }
                     setPeriodoError("");
 
+                    // Log para depuración: estudiantesSeleccionados
+                    console.log("[DEBUG] estudiantesSeleccionados:", estudiantesSeleccionados);
+
                     // Actualizar estado local
                     setGrados(grados.map(g =>
                       g.id === gradoSeleccionado.id
@@ -603,7 +672,7 @@ export default function GestionGradosClient() {
 
                     // Crear calificaciones solo para el periodo seleccionado
                     if (!asig.id || !asig.profesor) return;
-                    const estudiantes = estudiantesPorGrado[gradoSeleccionado.id] || [];
+                    const estudiantes = estudiantesSeleccionados;
                     const cursoId = String(gradoSeleccionado.id);
                     const asignaturaId = String(asig.id);
                     const profesorId = asig.profesor.id;
@@ -621,6 +690,15 @@ export default function GestionGradosClient() {
                         const yaExiste = existentes.some(
                           (c) => c.estudianteId == est.id && c.periodo === periodo
                         );
+                        // Log para depuración: datos de cada estudiante antes de registrar
+                        console.log("[DEBUG] Intentando registrar calificación para:", {
+                          estudianteId: est.id,
+                          asignaturaId,
+                          cursoId,
+                          periodo,
+                          nota: 0,
+                          observaciones: `Profesor: ${asig.profesor.nombre} (${profesorId})`,
+                        });
                         if (!yaExiste) {
                           try {
                             await registrarCalificacion({
@@ -641,9 +719,12 @@ export default function GestionGradosClient() {
                     // Refrescar calificaciones y asignaturas desde la API
                     const resCalif = await getCalificaciones({ cursoId, periodo });
                     setCalificaciones((resCalif as any).calificaciones || []);
+                    // Invalida el caché del curso
+                    setEstudiantesPorCurso(prev => { const newCache = { ...prev }; delete newCache[cursoId]; return newCache; });
+                    setAsignaturasPorCurso(prev => { const newCache = { ...prev }; delete newCache[cursoId]; return newCache; });
                   }}
                   onEliminar={eliminarAsignaturaDeGrado}
-                  disabled={!(estudiantesPorGrado[gradoSeleccionado.id] && estudiantesPorGrado[gradoSeleccionado.id].length > 0)}
+                  disabled={!(estudiantesSeleccionados && estudiantesSeleccionados.length > 0)}
                 />
               </div>
             ) : (

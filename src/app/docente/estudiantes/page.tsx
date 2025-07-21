@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getProfesorPorId } from "../../api/profesoresApi";
 import { getAsignaturas } from "../../api/asignaturasApi";
-import { getAllCursos, getAllEstudiantes } from "../../api/estudiantesCursos.api";
+import { getAllCursosWithEstudiantes } from "../../api/estudiantesCursos.api";
 import TableEstudiantes from "../../components/TableEstudiantes";
 import { getCalificaciones } from "../../api/calificacionesApi";
 
@@ -40,8 +40,7 @@ export default function DocenteDetallePage() {
         setAsignatura(asignaturaEncontrada || null);
 
         // 3. Obtener cursos y estudiantes desde REST
-        const cursos = await getAllCursos();
-        const estudiantes = await getAllEstudiantes();
+        const cursos = await getAllCursosWithEstudiantes();
 
         // 4. Obtener todos los cursos donde el profesor ha puesto calificaciones
         let cursosAsignados: any[] = [];
@@ -74,7 +73,7 @@ export default function DocenteDetallePage() {
         // 5. Relacionar estudiantes por grado SOLO para los cursos con calificaciones
         const porGrado: Record<number, any[]> = {};
         cursosAsignados.forEach((curso: any) => {
-          porGrado[curso.id] = (estudiantes.results || []).filter((e: any) => e.curso && e.curso.id === curso.id);
+          porGrado[curso.id] = (curso.estudiantes || []);
         });
         setEstudiantesPorGrado(porGrado);
 

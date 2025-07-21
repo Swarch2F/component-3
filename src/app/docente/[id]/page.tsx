@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getAsignaturas } from "../../api/asignaturasApi";
-import { getAllCursos, getAllEstudiantes, getCursoEstudiantes } from "../../api/estudiantesCursos.api";
+import { getAllCursosWithEstudiantes, getCursoEstudiantes } from "../../api/estudiantesCursos.api";
 import TableEstudiantes from "../../components/TableEstudiantes";
 import { actualizarCalificacion, getCalificaciones, registrarCalificacion } from "../../api/calificacionesApi";
 import { getAuthStatus } from "../../api/authApi";
@@ -75,15 +75,12 @@ export default function DocenteDetallePage() {
         setAsignatura(asignaturasDelProfesor[0] || null);
 
         // Obtener cursos y estudiantes desde REST
-        const cursos = await getAllCursos();
-        const estudiantesRes = await getAllEstudiantes();
-        // Filtrar estudiantes que tengan curso asignado
-        const estudiantes = (estudiantesRes.results || []).filter((e: any) => e.curso && e.curso.id);
+        const cursos = await getAllCursosWithEstudiantes();
         // Guardar los datos originales
         setGradosOriginales(cursos);
         const estudiantesPorGradoTmp: Record<number, any[]> = {};
         cursos.forEach((curso: any) => {
-          estudiantesPorGradoTmp[curso.id] = estudiantes.filter((e: any) => e.curso.id === curso.id);
+          estudiantesPorGradoTmp[curso.id] = curso.estudiantes || [];
         });
         setEstudiantesOriginales(estudiantesPorGradoTmp);
         // Refrescar cursos y estudiantes SOLO para el periodo actual (filtrando por profesor)
@@ -157,6 +154,7 @@ export default function DocenteDetallePage() {
       await Promise.all(
         cursosAsignados.map(async (curso: any) => {
           try {
+            console.log("aqui se hace el fetch a getCursoEstudiantes(curso.id); curso.id--> " + curso.id)
             const resEst = await getCursoEstudiantes(curso.id);
             estudiantesPorGradoAsignados[curso.id] = resEst || [];
           } catch (e) {

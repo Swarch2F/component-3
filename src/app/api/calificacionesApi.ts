@@ -17,11 +17,16 @@ export const GET_CALIFICACIONES = `
 
 // --- Mutations ---
 export const REGISTRAR_CALIFICACION = `
-  mutation($estudianteId: ID!, $asignaturaId: ID!, $cursoId: ID!, $periodo: String!, $nota: Float!, $observaciones: String) {
-    registrarCalificacion(estudianteId: $estudianteId, asignaturaId: $asignaturaId, cursoId: $cursoId, periodo: $periodo, nota: $nota, observaciones: $observaciones) {
-      id
-      nota
-      observaciones
+  mutation($input: CalificacionInput!) {
+    registrarCalificacion(input: $input) {
+      calificacion {
+        id
+        nota
+        observaciones
+      }
+      success
+      message
+      errors
     }
   }
 `;
@@ -38,8 +43,12 @@ export const ACTUALIZAR_CALIFICACION = `
 
 export const ELIMINAR_CALIFICACION = `
   mutation($id: ID!) {
-    eliminarCalificacion(id: $id)
+  eliminarCalificacion(id: $id) {
+    success
+    message
+    errors
   }
+}
 `;
 
 // --- Funciones para consumir el API ---
@@ -48,7 +57,7 @@ export async function getCalificaciones(params: { estudianteId?: string; asignat
 }
 
 export async function registrarCalificacion(input: { estudianteId: string; asignaturaId: string; cursoId: string; periodo: string; nota: number; observaciones?: string }) {
-  return graphQLClient.request(REGISTRAR_CALIFICACION, input);
+  return graphQLClient.request(REGISTRAR_CALIFICACION, { input });
 }
 
 export async function actualizarCalificacion(id: string, nota?: number, observaciones?: string) {

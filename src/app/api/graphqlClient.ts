@@ -17,7 +17,7 @@ async function getConfig() {
 }
 
 // Cliente GraphQL con manejo automático de tokens
-const client = new GraphQLClient(`${API_BASE}/graphql`, {
+const client = new GraphQLClient(API_BASE, {
   headers: {
     'Content-Type': 'application/json',
     ...tokenService.getAuthHeader()
@@ -37,7 +37,7 @@ const client = new GraphQLClient(`${API_BASE}/graphql`, {
 export const updateClientConfig = async () => {
   await getConfig();
   // Actualizar el cliente con la nueva URL
-  client.setEndpoint(`${API_BASE}/graphql`);
+  client.setEndpoint(API_BASE);
 };
 
 // Función para actualizar el header de autorización

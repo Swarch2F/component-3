@@ -12,6 +12,7 @@ import {
   actualizarAsignatura,
   eliminarAsignatura as eliminarAsignaturaApi,
 } from "../../api/asignaturasApi";
+import { checkEmailExists } from '../../api/authApi';
 
 interface Asignatura {
   id: string;
@@ -48,6 +49,8 @@ export default function GestionAsignaturasProfesores() {
   const [nuevaAsignatura, setNuevaAsignatura] = useState("");
   const [editandoAsignaturaId, setEditandoAsignaturaId] = useState<string | null>(null);
   const [nuevoNombreAsignatura, setNuevoNombreAsignatura] = useState<string>("");
+  const [correoExiste, setCorreoExiste] = useState(false);
+  const [checkingCorreo, setCheckingCorreo] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -58,6 +61,20 @@ export default function GestionAsignaturasProfesores() {
     }
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const email = nuevoProfesor.correo.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setCorreoExiste(false);
+      return;
+    }
+    setCheckingCorreo(true);
+    checkEmailExists(email)
+      .then(exists => setCorreoExiste(exists))
+      .catch(() => setCorreoExiste(false))
+      .finally(() => setCheckingCorreo(false));
+  }, [nuevoProfesor.correo]);
 
   // Validaciones
   const validarNombreProfesor = (nombre: string) => nombre.trim().length > 0 && nombre.trim().length <= 30;
@@ -89,6 +106,18 @@ export default function GestionAsignaturasProfesores() {
     }
     if (!nuevoProfesor.correo.trim() || !nuevoProfesor.contrasena.trim()) {
       alert("Debe ingresar correo y contraseña para el usuario del profesor.");
+      return;
+    }
+    // Validar si el correo ya existe
+    const email = nuevoProfesor.correo.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert("El correo no tiene un formato válido.");
+      return;
+    }
+    const existe = await checkEmailExists(email);
+    if (existe) {
+      alert("Este correo ya está registrado. Por favor, usa otro.");
       return;
     }
     // Usar 'General' como área por defecto
@@ -146,6 +175,7 @@ export default function GestionAsignaturasProfesores() {
 
   // Crear asignatura
   const agregarAsignatura = async () => {
+    console.log("Valor a crear:", nuevaAsignatura); // <-- Agrega esto
     if (!validarNombreAsignatura(nuevaAsignatura)) {
       alert("El nombre de la asignatura es obligatorio, único y debe tener máximo 20 caracteres.");
       return;
@@ -306,13 +336,28 @@ export default function GestionAsignaturasProfesores() {
         <div className="flex gap-2 mt-4 flex-wrap">
           <input value={nuevoProfesor.nombre} onChange={e => setNuevoProfesor({ ...nuevoProfesor, nombre: e.target.value })} placeholder="Nombre del profesor" className="input-modern flex-1" />
           <input value={nuevoProfesor.documento} onChange={e => setNuevoProfesor({ ...nuevoProfesor, documento: e.target.value })} placeholder="N. Documento" className="input-modern flex-1" />
-          <input value={nuevoProfesor.correo} onChange={e => setNuevoProfesor({ ...nuevoProfesor, correo: e.target.value })} placeholder="Correo del profesor" className="input-modern flex-1" />
+          <input
+            value={nuevoProfesor.correo}
+            onChange={e => setNuevoProfesor({ ...nuevoProfesor, correo: e.target.value })}
+            placeholder="Correo del profesor"
+            className="input-modern flex-1"
+          />
+          {checkingCorreo && <span className="text-gray-500 text-xs">Verificando correo...</span>}
+          {correoExiste && (
+            <span className="text-red-500 text-xs">Este correo ya está registrado.</span>
+          )}
           <input type="password" value={nuevoProfesor.contrasena} onChange={e => setNuevoProfesor({ ...nuevoProfesor, contrasena: e.target.value })} placeholder="Contraseña" className="input-modern flex-1" />
           <select value={nuevoProfesor.asignaturaId} onChange={e => setNuevoProfesor({ ...nuevoProfesor, asignaturaId: e.target.value })} className="input-modern flex-1">
             <option value="">Asignatura</option>
             {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
           </select>
-          <button className="btn-primary px-4" onClick={agregarProfesor}>Agregar</button>
+          <button
+            className="btn-primary px-4"
+            onClick={agregarProfesor}
+            disabled={correoExiste || checkingCorreo}
+          >
+            Agregar
+          </button>
         </div>
       </div>
       <div className="card-modern w-full max-w-2xl p-6">

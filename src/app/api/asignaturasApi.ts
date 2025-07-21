@@ -64,7 +64,7 @@ export async function crearAsignatura(nombre: string) {
   return graphQLClient.request(CREAR_ASIGNATURA, { nombre });
 }
 
-export async function actualizarAsignatura(id: string, nombre?: string) {
+export async function actualizarAsignatura(id: string, nombre: string) {
   return graphQLClient.request(ACTUALIZAR_ASIGNATURA, { id, nombre });
 }
 

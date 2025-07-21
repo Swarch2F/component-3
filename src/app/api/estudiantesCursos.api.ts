@@ -27,6 +27,22 @@ const QUERY_LISTAR_CURSOS = `
     }
   }
 `;
+// Consulta para listar cursos (grados) junto con sus asignaturas asociadas
+const QUERY_GRADOS_GESTION = `
+  query($search: String, $ordering: String, $page: Int) {
+    cursos(search: $search, ordering: $ordering, page: $page) {
+      results {
+        id
+        nombre
+        codigo
+        asignaturas {
+          id
+          nombre
+        }
+      }
+    }
+  }
+`
 
 const QUERY_LISTAR_ESTUDIANTES = `
   query($search: String, $ordering: String, $page: Int) {
@@ -42,7 +58,12 @@ const QUERY_LISTAR_ESTUDIANTES = `
 const MUTATION_CREAR_ESTUDIANTE = `
   mutation($input: CrearEstudianteInput!) {
     crearEstudiante(input: $input) {
-      id nombreCompleto documento fechaNacimiento acudiente curso { id nombre codigo }
+      success
+      message
+      estudiante {
+        id nombreCompleto documento fechaNacimiento acudiente curso { id nombre codigo }
+      }
+      errors
     }
   }
 `;
@@ -50,19 +71,57 @@ const MUTATION_CREAR_ESTUDIANTE = `
 const MUTATION_ACTUALIZAR_ESTUDIANTE = `
   mutation($id: ID!, $input: ActualizarEstudianteInput!) {
     actualizarEstudiante(id: $id, input: $input) {
-      id nombreCompleto documento fechaNacimiento acudiente curso { id nombre codigo }
+      success
+      message
+      estudiante {
+        id nombreCompleto documento fechaNacimiento acudiente curso { id nombre codigo }
+      }
+      errors
     }
   }
 `;
 
 const MUTATION_ELIMINAR_ESTUDIANTE = `
   mutation($id: ID!) {
-    eliminarEstudiante(id: $id)
+    eliminarEstudiante(id: $id) {
+      success
+      message
+      errors
+    }
   }
 `;
 
 // --- Funciones GraphQL ---
+// Función para obtener todos los cursos simples (sin estudiantes)
 export async function getAllCursos() {
+  let allCursos: Curso[] = [];
+  let currentPage = 1;
+  let keepFetching = true;
+  try {
+    while (keepFetching) {
+      const res = await graphQLClient.request(
+        `query { cursos(search: "", ordering: "nombre", page: ${currentPage}) { next results { id nombre codigo } } }`
+      ) as { cursos: { next: any, results: Curso[] } };
+      if (!res || !res.cursos || !Array.isArray(res.cursos.results)) {
+        console.error("Respuesta inesperada de cursos:", res);
+        throw new Error("Error al obtener cursos: respuesta inesperada");
+      }
+      allCursos = allCursos.concat(res.cursos.results);
+      if (!res.cursos.next) {
+        keepFetching = false;
+      } else {
+        currentPage++;
+      }
+    }
+    return allCursos;
+  } catch (e) {
+    console.error("Error en getAllCursos:", e);
+    throw e;
+  }
+}
+
+// Función para obtener todos los cursos con estudiantes
+export async function getAllCursosWithEstudiantes() {
   let allCursos: Curso[] = [];
   let currentPage = 1;
   let keepFetching = true;
@@ -84,13 +143,36 @@ export async function getAllCursos() {
     }
     return allCursos;
   } catch (e) {
-    console.error("Error en getAllCursos:", e);
+    console.error("Error en getAllCursosWithEstudiantes:", e);
     throw e;
   }
 }
 
-// Nueva función que solo obtiene la primera página de cursos
+// Función para obtener cursos simples (sin estudiantes)
 export async function getCursosPage(page: number = 1) {
+  try {
+    const res = await graphQLClient.request(
+      `query { cursos(search: "", ordering: "nombre", page: ${page}) { next results { id nombre codigo } } }`
+    ) as { cursos: { next: any, results: Curso[] } };
+    
+    if (!res || !res.cursos || !Array.isArray(res.cursos.results)) {
+      console.error("Respuesta inesperada de cursos:", res);
+      throw new Error("Error al obtener cursos: respuesta inesperada");
+    }
+    
+    return {
+      cursos: res.cursos.results,
+      hasNext: !!res.cursos.next,
+      next: res.cursos.next
+    };
+  } catch (e) {
+    console.error("Error en getCursosPage:", e);
+    throw e;
+  }
+}
+
+// Función para obtener cursos con estudiantes (vista detallada)
+export async function getCursosPageWithEstudiantes(page: number = 1) {
   try {
     const res = await graphQLClient.request(
       `query { cursos(search: "", ordering: "nombre", page: ${page}) { next results { id nombre codigo estudiantes { id nombreCompleto documento } } } }`
@@ -107,7 +189,7 @@ export async function getCursosPage(page: number = 1) {
       next: res.cursos.next
     };
   } catch (e) {
-    console.error("Error en getCursosPage:", e);
+    console.error("Error en getCursosPageWithEstudiantes:", e);
     throw e;
   }
 }
@@ -173,12 +255,17 @@ export async function createEstudiante(data: Estudiante) {
           ${inputFields}
         }
       ) {
-        id
-        nombreCompleto
-        documento
-        fechaNacimiento
-        acudiente
-        curso { id nombre codigo }
+        success
+        message
+        estudiante {
+          id
+          nombreCompleto
+          documento
+          fechaNacimiento
+          acudiente
+          curso { id nombre codigo }
+        }
+        errors
       }
     }
   `;
@@ -213,12 +300,17 @@ export async function updateEstudiante(id: string, data: Partial<Estudiante>) {
           ${inputFields}
         }
       ) {
-        id
-        nombreCompleto
-        documento
-        fechaNacimiento
-        acudiente
-        curso { id nombre codigo }
+        success
+        message
+        estudiante {
+          id
+          nombreCompleto
+          documento
+          fechaNacimiento
+          acudiente
+          curso { id nombre codigo }
+        }
+        errors
       }
     }
   `;
@@ -234,9 +326,14 @@ export async function createCurso(data: { nombre: string; codigo: string }) {
   const mutation = `
     mutation {
       crearCurso(input: { nombre: "${data.nombre.replace(/"/g, '\"')}", codigo: "${data.codigo.replace(/"/g, '\"')}" }) {
-        id
-        nombre
-        codigo
+        success
+        message
+        curso {
+          id
+          nombre
+          codigo
+        }
+        errors
       }
     }
   `;
@@ -248,9 +345,14 @@ export async function updateCurso(id: string | number, data: { nombre: string; c
   const mutation = `
     mutation {
       actualizarCurso(id: "${id}", input: { nombre: "${data.nombre.replace(/"/g, '\"')}", codigo: "${data.codigo.replace(/"/g, '\"')}" }) {
-        id
-        nombre
-        codigo
+        success
+        message
+        curso {
+          id
+          nombre
+          codigo
+        }
+        errors
       }
     }
   `;
@@ -262,9 +364,14 @@ export async function updateCursoParcial(id: string | number, nombre: string) {
   const mutation = `
     mutation {
       actualizarCursoParcial(id: "${id}", nombre: "${nombre.replace(/"/g, '\"')}") {
-        id
-        nombre
-        codigo
+        success
+        message
+        curso {
+          id
+          nombre
+          codigo
+        }
+        errors
       }
     }
   `;
@@ -274,7 +381,11 @@ export async function updateCursoParcial(id: string | number, nombre: string) {
 export async function deleteCurso(id: string | number) {
   const mutation = `
     mutation {
-      eliminarCurso(id: "${id}")
+      eliminarCurso(id: "${id}") {
+        success
+        message
+        errors
+      }
     }
   `;
   return graphQLClient.request(mutation);

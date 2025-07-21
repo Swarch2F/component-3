@@ -252,3 +252,16 @@ export async function checkAuthStatus(): Promise<AuthStatus> {
         };
     }
 }
+
+export async function checkEmailExists(email: string): Promise<boolean> {
+  try {
+    const response = await client.request<{ emailExists: boolean }>(
+      `mutation($email: String!) { emailExists(email: $email) }`,
+      { email }
+    );
+    return !!response.emailExists;
+  } catch (error) {
+    console.error('Error verificando existencia de email:', error);
+    return false;
+  }
+}
