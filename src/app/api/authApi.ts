@@ -7,7 +7,7 @@ let API_BASE = 'https://localhost:444/graphql'; // valor por defecto para desarr
 // Función para obtener la configuración dinámica
 async function getConfig() {
   try {
-    const response = await fetch('/api/config');
+    const response = await fetch('/config.json');
     const config = await response.json();
     API_BASE = config.apiBase;
     console.log('Auth API Config loaded:', config);

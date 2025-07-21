@@ -5,6 +5,7 @@ import "./modern.css";
 import { updateClientConfig } from './api/graphqlClient';
 import { updateAuthClientConfig } from './api/authApi';
 import React from 'react';
+import { ConfigLoader } from "./components/ConfigLoader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,22 +37,13 @@ async function initializeConfig() {
   }
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  // Inicializar configuración cuando el componente se monta
-  React.useEffect(() => {
-    initializeConfig();
-  }, []);
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ConfigLoader>
+          {children}
+        </ConfigLoader>
       </body>
     </html>
   );

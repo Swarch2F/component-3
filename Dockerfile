@@ -19,8 +19,15 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Expose the port the app runs on
+# Copiar el script de entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Exponer el puerto
 EXPOSE 3000
 
-# Start the application
+# Usar el entrypoint para sobreescribir config.json en runtime
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Iniciar la app
 CMD ["npm", "start"]
