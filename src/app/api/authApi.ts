@@ -6,13 +6,16 @@ let API_BASE = 'https://localhost:444/graphql'; // valor por defecto para desarr
 
 // Función para obtener la configuración dinámica
 async function getConfig() {
+  if (typeof window === 'undefined') return;
+
   try {
     const response = await fetch('/config.json');
     const config = await response.json();
-    API_BASE = config.apiBase;
-    //console.log('Auth API Config loaded:', config);
+    const apiPath = config.apiBase;
+    API_BASE = `${window.location.origin}${apiPath}`;
   } catch (error) {
-    console.warn('Could not load config for auth API, using default:', error);
+    console.warn('No se pudo cargar la configuración para auth API, usando valores por defecto:', error);
+    API_BASE = '/graphql';
   }
 }
 

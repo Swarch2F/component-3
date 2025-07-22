@@ -1,18 +1,29 @@
 import { GraphQLClient } from 'graphql-request';
 import { tokenService } from './tokenService';
 
-// URL base para las peticiones GraphQL - se obtiene dinámicamente
-let API_BASE = 'https://localhost:444/graphql'; // valor por defecto para desarrollo
+// Un valor inicial que sea una URL válida, aunque sea temporal
+let API_BASE = 'http://localhost/graphql'; 
 
-// Función para obtener la configuración dinámica
+// --- CORRECCIÓN ---
+// Ahora esta función construye la URL completa y correcta.
 async function getConfig() {
+  // Solo se ejecuta en el navegador
+  if (typeof window === 'undefined') return;
+  
   try {
+    // 1. Obtiene la ruta base de la API (ej: "/graphql") desde el config.json
     const response = await fetch('/config.json');
     const config = await response.json();
-    API_BASE = config.apiBase;
-    //console.log('Config loaded:', config);
+    const apiPath = config.apiBase; // Debería ser "/graphql"
+
+    // 2. Construye la URL completa usando el dominio actual de la ventana
+    //    Esto resulta en "https://gradex.space/graphql"
+    API_BASE = `${window.location.origin}${apiPath}`;
+    
   } catch (error) {
-    console.warn('Could not load config, using default:', error);
+    console.warn('No se pudo cargar la configuración, usando valores por defecto:', error);
+    // Como fallback, intenta usar el path relativo (puede que no funcione con esta librería)
+    API_BASE = '/graphql';
   }
 }
 
@@ -36,7 +47,7 @@ const client = new GraphQLClient(API_BASE, {
 // Función para actualizar el cliente con nueva configuración
 export const updateClientConfig = async () => {
   await getConfig();
-  // Actualizar el cliente con la nueva URL
+  // Actualizar el cliente con la nueva URL completa
   client.setEndpoint(API_BASE);
 };
 
