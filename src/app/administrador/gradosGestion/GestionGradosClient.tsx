@@ -657,7 +657,7 @@ export default function GestionGradosClient() {
                     setPeriodoError("");
 
                     // Log para depuración: estudiantesSeleccionados
-                    console.log("[DEBUG] estudiantesSeleccionados:", estudiantesSeleccionados);
+                    //console.log("[DEBUG] estudiantesSeleccionados:", estudiantesSeleccionados);
 
                     // Actualizar estado local
                     setGrados(grados.map(g =>
@@ -691,14 +691,14 @@ export default function GestionGradosClient() {
                           (c) => c.estudianteId == est.id && c.periodo === periodo
                         );
                         // Log para depuración: datos de cada estudiante antes de registrar
-                        console.log("[DEBUG] Intentando registrar calificación para:", {
-                          estudianteId: est.id,
-                          asignaturaId,
-                          cursoId,
-                          periodo,
-                          nota: 0,
-                          observaciones: `Profesor: ${asig.profesor.nombre} (${profesorId})`,
-                        });
+                        //console.log("[DEBUG] Intentando registrar calificación para:", {
+                         // estudianteId: est.id,
+                         // asignaturaId,
+                         // cursoId,
+                         // periodo,
+                         // nota: 0,
+                        //  observaciones: `Profesor: ${asig.profesor.nombre} (${profesorId})`,
+                        //});
                         if (!yaExiste) {
                           try {
                             await registrarCalificacion({

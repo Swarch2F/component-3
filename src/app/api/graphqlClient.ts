@@ -10,7 +10,7 @@ async function getConfig() {
     const response = await fetch('/config.json');
     const config = await response.json();
     API_BASE = config.apiBase;
-    console.log('Config loaded:', config);
+    //console.log('Config loaded:', config);
   } catch (error) {
     console.warn('Could not load config, using default:', error);
   }

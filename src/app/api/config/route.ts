@@ -14,11 +14,11 @@ export async function GET() {
     apiBase = process.env.NEXT_PUBLIC_API_BASE || 'https://nginx-proxy:443/graphql';
   }
   
-  console.log('Environment detection:', {
-    NODE_ENV: process.env.NODE_ENV,
-    isDevelopment,
-    apiBase
-  });
+  //console.log('Environment detection:', {
+ //   NODE_ENV: process.env.NODE_ENV,
+  //  isDevelopment,
+  //  apiBase
+  //});
   
   return NextResponse.json({
     apiBase,

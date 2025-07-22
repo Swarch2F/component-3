@@ -67,7 +67,7 @@ export default function DocenteDetallePage() {
           }
         }
 
-        console.log(`Mostrando cursos con calificaciones del profesor (${cursosAsignados.length} en total)`);
+        //console.log(`Mostrando cursos con calificaciones del profesor (${cursosAsignados.length} en total)`);
         setGrados(cursosAsignados);
 
         // 5. Relacionar estudiantes por grado SOLO para los cursos con calificaciones

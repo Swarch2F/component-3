@@ -175,7 +175,7 @@ export default function GestionAsignaturasProfesores() {
 
   // Crear asignatura
   const agregarAsignatura = async () => {
-    console.log("Valor a crear:", nuevaAsignatura); // <-- Agrega esto
+    // //console.log("Valor a crear:", nuevaAsignatura); // <-- Agrega esto
     if (!validarNombreAsignatura(nuevaAsignatura)) {
       alert("El nombre de la asignatura es obligatorio, único y debe tener máximo 20 caracteres.");
       return;
@@ -227,7 +227,7 @@ export default function GestionAsignaturasProfesores() {
 
   // Función para manejar el botón "Ver más"
   const verCursos = (id: string) => {
-    console.log(`Accediendo a los cursos del profesor con ID: ${id}`);
+    // //console.log(`Accediendo a los cursos del profesor con ID: ${id}`);
     // Aquí puedes redirigir o realizar alguna acción específica
   };
 

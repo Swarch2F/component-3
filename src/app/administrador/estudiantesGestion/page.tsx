@@ -81,22 +81,22 @@ export default function EstudiantesGestionPage() {
 
   // Función para cargar la primera página y cursos
   const fetchInitialData = async () => {
-    console.log("🔄 [fetchInitialData] Iniciando carga inicial de datos...");
+    // ////console.log("🔄 [fetchInitialData] Iniciando carga inicial de datos...");
     setLoading(true);
     try {
       // ✅ Usar función paginada optimizada en lugar de getAllCursos()
-      console.log("📚 [fetchInitialData] Llamando a getCursosPage(1)...");
+      // ////console.log("📚 [fetchInitialData] Llamando a getCursosPage(1)...");
       const cursosResponse = await getCursosPage(1);
-      console.log("✅ [fetchInitialData] getCursosPage(1) completado:", cursosResponse);
+      ////console.log("✅ [fetchInitialData] getCursosPage(1) completado:", cursosResponse);
       
       const cursosOrdenados = ordenarGradosNumerico(cursosResponse.cursos);
       setCursos(cursosOrdenados);
-      console.log("📋 [fetchInitialData] Cursos ordenados y guardados:", cursosOrdenados.length, "cursos");
+      ////console.log("📋 [fetchInitialData] Cursos ordenados y guardados:", cursosOrdenados.length, "cursos");
       
       // ✅ Usar función paginada optimizada en lugar de getAllEstudiantes()
-      console.log("👥 [fetchInitialData] Llamando a getEstudiantesPage({ page: 1 })...");
+      ////console.log("👥 [fetchInitialData] Llamando a getEstudiantesPage({ page: 1 })...");
       const estudiantesRes = await getEstudiantesPage({ page: 1 });
-      console.log("✅ [fetchInitialData] getEstudiantesPage({ page: 1 }) completado:", estudiantesRes);
+      ////console.log("✅ [fetchInitialData] getEstudiantesPage({ page: 1 }) completado:", estudiantesRes);
       
       const estudiantes = (estudiantesRes.estudiantes || []).map(e => ({
         id: e.id,
@@ -109,29 +109,29 @@ export default function EstudiantesGestionPage() {
       }));
       setStudents(estudiantes);
       setTotalEstudiantes(estudiantesRes.count || 0);
-      console.log("👥 [fetchInitialData] Estudiantes procesados y guardados:", estudiantes.length, "estudiantes");
+      ////console.log("👥 [fetchInitialData] Estudiantes procesados y guardados:", estudiantes.length, "estudiantes");
     } catch (err) {
       console.error("❌ [fetchInitialData] Error:", err);
       setError("Error cargando los datos de estudiantes");
     } finally {
       setLoading(false);
-      console.log("🏁 [fetchInitialData] Carga inicial completada");
+      ////console.log("🏁 [fetchInitialData] Carga inicial completada");
     }
   };
 
   // Función para cargar más estudiantes (infinite scroll)
   const loadMoreEstudiantes = async (pageNum: number, isInitial: boolean = false) => {
-    console.log(`🔄 [loadMoreEstudiantes] Iniciando carga de página ${pageNum}, isInitial: ${isInitial}`);
+    ////console.log(`🔄 [loadMoreEstudiantes] Iniciando carga de página ${pageNum}, isInitial: ${isInitial}`);
     if (loadingMore) {
-      console.log("⏸️ [loadMoreEstudiantes] Ya está cargando, saltando...");
+      ////console.log("⏸️ [loadMoreEstudiantes] Ya está cargando, saltando...");
       return;
     }
     
     setLoadingMore(true);
     try {
-      console.log(`👥 [loadMoreEstudiantes] Llamando a getEstudiantesPage({ page: ${pageNum} })...`);
+      ////console.log(`👥 [loadMoreEstudiantes] Llamando a getEstudiantesPage({ page: ${pageNum} })...`);
       const res = await getEstudiantesPage({ page: pageNum });
-      console.log(`✅ [loadMoreEstudiantes] getEstudiantesPage({ page: ${pageNum} }) completado:`, res);
+      ////console.log(`✅ [loadMoreEstudiantes] getEstudiantesPage({ page: ${pageNum} }) completado:`, res);
       
       const estudiantesList = res.estudiantes || [];
       
@@ -153,39 +153,39 @@ export default function EstudiantesGestionPage() {
       if (isInitial) {
         setStudents(mappedEstudiantes);
         setTotalEstudiantes(res.count || 0);
-        console.log(`👥 [loadMoreEstudiantes] Estudiantes iniciales guardados: ${mappedEstudiantes.length} estudiantes`);
+        ////console.log(`👥 [loadMoreEstudiantes] Estudiantes iniciales guardados: ${mappedEstudiantes.length} estudiantes`);
       } else {
         setStudents(prev => [...prev, ...mappedEstudiantes]);
-        console.log(`👥 [loadMoreEstudiantes] Estudiantes adicionales agregados: ${mappedEstudiantes.length} estudiantes`);
+        ////console.log(`👥 [loadMoreEstudiantes] Estudiantes adicionales agregados: ${mappedEstudiantes.length} estudiantes`);
       }
 
       // Verificar si hay más páginas
       setHasMore(res.hasNext);
       setPage(pageNum + 1);
-      console.log(`📄 [loadMoreEstudiantes] Página actualizada a ${pageNum + 1}, hasMore: ${res.hasNext}`);
+      ////console.log(`📄 [loadMoreEstudiantes] Página actualizada a ${pageNum + 1}, hasMore: ${res.hasNext}`);
     } catch (err) {
       console.error(`❌ [loadMoreEstudiantes] Error en página ${pageNum}:`, err);
       setError("Error cargando más estudiantes");
     } finally {
       setLoadingMore(false);
-      console.log(`🏁 [loadMoreEstudiantes] Carga de página ${pageNum} completada`);
+      ////console.log(`🏁 [loadMoreEstudiantes] Carga de página ${pageNum} completada`);
     }
   };
 
   // Callback para el observer del infinite scroll
   const lastElementRef = useCallback((node: HTMLTableRowElement | null) => {
-    console.log("👁️ [lastElementRef] Observer callback ejecutado, node:", !!node);
+    ////console.log("👁️ [lastElementRef] Observer callback ejecutado, node:", !!node);
     if (loadingMore) {
-      console.log("⏸️ [lastElementRef] Ya está cargando, saltando...");
+      ////console.log("⏸️ [lastElementRef] Ya está cargando, saltando...");
       return;
     }
     
     if (observerRef.current) observerRef.current.disconnect();
     
     observerRef.current = new IntersectionObserver(entries => {
-      console.log("👁️ [lastElementRef] Intersection observer detectado:", entries[0].isIntersecting);
+      ////console.log("👁️ [lastElementRef] Intersection observer detectado:", entries[0].isIntersecting);
       if (entries[0].isIntersecting && hasMore) {
-        console.log("🔄 [lastElementRef] Iniciando carga de más estudiantes desde observer...");
+        ////console.log("🔄 [lastElementRef] Iniciando carga de más estudiantes desde observer...");
         loadMoreEstudiantes(page);
       }
     });
@@ -195,21 +195,21 @@ export default function EstudiantesGestionPage() {
 
   // Función para refrescar todos los datos
   const refreshData = async () => {
-    console.log("🔄 [refreshData] Iniciando refresh de datos...");
+    ////console.log("🔄 [refreshData] Iniciando refresh de datos...");
     setStudents([]);
     setPage(1);
     setHasMore(true);
     await fetchInitialData();
-    console.log("🏁 [refreshData] Refresh completado");
+    ////console.log("🏁 [refreshData] Refresh completado");
   };
 
   useEffect(() => {
-    console.log("🚀 [useEffect] Componente montado, iniciando fetchInitialData...");
+    ////console.log("🚀 [useEffect] Componente montado, iniciando fetchInitialData...");
     fetchInitialData();
   }, []); // Solo al montar
 
   const handleEdit = (student: Student) => {
-    console.log("✏️ [handleEdit] Editando estudiante:", student);
+    ////console.log("✏️ [handleEdit] Editando estudiante:", student);
     // Con select_related, ya tenemos el ID del curso directamente
     // Buscar el curso por ID (más eficiente que por nombre)
     const cursoObj = cursos.find(c => c.id === student.grado || c.nombre === student.grado);
@@ -218,7 +218,7 @@ export default function EstudiantesGestionPage() {
   };
 
   const handleEditSave = async () => {
-    console.log("🔄 [handleEditSave] Iniciando edición de estudiante:", editStudent);
+    ////console.log("🔄 [handleEditSave] Iniciando edición de estudiante:", editStudent);
     if (!editStudent) return;
     // Buscar el curso por id (ahora grado almacena el id)
     const cursoObj = cursos.find(c => c.id === editStudent.grado);
@@ -228,7 +228,7 @@ export default function EstudiantesGestionPage() {
       return;
     }
     try {
-      console.log("📝 [handleEditSave] Llamando a updateEstudiante...");
+      ////console.log("📝 [handleEditSave] Llamando a updateEstudiante...");
       const result = await updateEstudiante(editStudent.id, {
         nombreCompleto: editStudent.nombre,
         documento: editStudent.documento,
@@ -236,12 +236,12 @@ export default function EstudiantesGestionPage() {
         acudiente: editStudent.acudiente,
         curso: cursoObj.id
       }) as any;
-      console.log("✅ [handleEditSave] updateEstudiante completado:", result);
+      ////console.log("✅ [handleEditSave] updateEstudiante completado:", result);
       
       if (result.actualizarEstudiante.success) {
         setShowEditModal(false);
         setEditStudent(null);
-        console.log("🔄 [handleEditSave] Refrescando datos después de edición...");
+        ////console.log("🔄 [handleEditSave] Refrescando datos después de edición...");
         // Refrescar todos los estudiantes
         await refreshData();
       } else {
@@ -255,23 +255,23 @@ export default function EstudiantesGestionPage() {
   };
 
   const handleDelete = (id: string) => {
-    console.log("🗑️ [handleDelete] Iniciando eliminación de estudiante:", id);
+    ////console.log("🗑️ [handleDelete] Iniciando eliminación de estudiante:", id);
     const estudiante = students.find(s => s.id === id);
     if (!estudiante) return;
     setShowDeleteConfirm({ id, nombre: estudiante.nombre });
   };
 
   const confirmarEliminar = async () => {
-    console.log("🗑️ [confirmarEliminar] Confirmando eliminación:", showDeleteConfirm);
+    ////console.log("🗑️ [confirmarEliminar] Confirmando eliminación:", showDeleteConfirm);
     if (!showDeleteConfirm) return;
     try {
-      console.log("🗑️ [confirmarEliminar] Llamando a deleteEstudiante...");
+      ////console.log("🗑️ [confirmarEliminar] Llamando a deleteEstudiante...");
       const result = await deleteEstudiante(showDeleteConfirm.id) as any;
-      console.log("✅ [confirmarEliminar] deleteEstudiante completado:", result);
+      ////console.log("✅ [confirmarEliminar] deleteEstudiante completado:", result);
       
       if (result.eliminarEstudiante.success) {
         setShowDeleteConfirm(null);
-        console.log("🔄 [confirmarEliminar] Refrescando datos después de eliminación...");
+        ////console.log("🔄 [confirmarEliminar] Refrescando datos después de eliminación...");
         // Refrescar todos los estudiantes
         await refreshData();
       } else {
@@ -287,13 +287,13 @@ export default function EstudiantesGestionPage() {
   const cancelarEliminar = () => setShowDeleteConfirm(null);
 
   const handleAddStudent = async () => {
-    console.log("➕ [handleAddStudent] Iniciando creación de estudiante:", newStudent);
+    ////console.log("➕ [handleAddStudent] Iniciando creación de estudiante:", newStudent);
     if (!newStudent.nombre.trim() || !newStudent.documento.trim() || !newStudent.nacimiento.trim() || !newStudent.acudiente.trim() || !newStudent.grado.trim()) return;
     // Buscar el curso por ID o nombre (más eficiente)
     const cursoObj = cursos.find(c => c.id === newStudent.grado || c.nombre === newStudent.grado);
     if (!cursoObj) return alert("Grado inválido");
     try {
-      console.log("➕ [handleAddStudent] Llamando a createEstudiante...");
+      ////console.log("➕ [handleAddStudent] Llamando a createEstudiante...");
       const result = await createEstudiante({
         nombreCompleto: newStudent.nombre,
         documento: newStudent.documento,
@@ -301,12 +301,12 @@ export default function EstudiantesGestionPage() {
         acudiente: newStudent.acudiente,
         curso: cursoObj.id!
       }) as any;
-      console.log("✅ [handleAddStudent] createEstudiante completado:", result);
+      ////console.log("✅ [handleAddStudent] createEstudiante completado:", result);
       
       if (result.crearEstudiante.success) {
         setShowAddModal(false);
         setNewStudent({ nombre: "", documento: "", nacimiento: "", acudiente: "", grado: "" });
-        console.log("🔄 [handleAddStudent] Refrescando datos después de creación...");
+        ////console.log("🔄 [handleAddStudent] Refrescando datos después de creación...");
         // Refrescar todos los estudiantes
         await refreshData();
       } else {

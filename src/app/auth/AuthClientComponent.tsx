@@ -89,12 +89,12 @@ export default function AuthClientComponent() {
     setIsAuthenticated(false);
 
     try {
-      console.log('Intentando login con:', { email: loginEmail });
+      //console.log('Intentando login con:', { email: loginEmail });
       const result = await loginUser(loginEmail, loginPassword) as LoginResponse;
-      console.log('Respuesta del login desde page.tsx:', result);
+      //console.log('Respuesta del login desde page.tsx:', result);
 
       // Verificar cookies después del login
-      console.log('Cookies después del login:', document.cookie);
+      //console.log('Cookies después del login:', document.cookie);
 
       if ('error' in result) {
         showResult(setLoginResult, `Error: ${result.error}`, true);
@@ -117,11 +117,11 @@ export default function AuthClientComponent() {
     setIsAuthenticated(false);
 
     try {
-      console.log('Verificando estado de autenticación...');
-      console.log('Cookies antes de verificar estado:', document.cookie);
+      //console.log('Verificando estado de autenticación...');
+      //console.log('Cookies antes de verificar estado:', document.cookie);
       
       const result = await getAuthStatus() as AuthStatus;
-      console.log('Respuesta del estado de autenticación:', result);
+      //console.log('Respuesta del estado de autenticación:', result);
       
       if ('error' in result) {
         console.error('Error en estado de autenticación:', result.error);
@@ -162,10 +162,10 @@ export default function AuthClientComponent() {
     setIsAuthenticated(false);
 
     try {
-      console.log('Cookies antes del logout:', document.cookie);
+      //console.log('Cookies antes del logout:', document.cookie);
       const result = await logout() as LogoutResponse;
-      console.log('Respuesta del logout:', result);
-      console.log('Cookies después del logout:', document.cookie);
+      //console.log('Respuesta del logout:', result);
+      //console.log('Cookies después del logout:', document.cookie);
       
       if ('error' in result) {
         showResult(setAuthStatusResult, `Error al cerrar sesión: ${result.error}`, true);

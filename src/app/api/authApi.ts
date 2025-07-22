@@ -10,7 +10,7 @@ async function getConfig() {
     const response = await fetch('/config.json');
     const config = await response.json();
     API_BASE = config.apiBase;
-    console.log('Auth API Config loaded:', config);
+    //console.log('Auth API Config loaded:', config);
   } catch (error) {
     console.warn('Could not load config for auth API, using default:', error);
   }
@@ -118,7 +118,7 @@ interface AuthStatusResponse {
 
 // --- Funciones para consumir el API ---
 export async function loginUser(email: string, password: string): Promise<LoginResponse> {
-  console.log('Iniciando login con:', { email });
+  //console.log('Iniciando login con:', { email });
   try {
     const response = await client.request<GraphQLResponse<LoginResponse>>(`
       mutation LoginUser($input: LoginInput!) {
@@ -131,7 +131,7 @@ export async function loginUser(email: string, password: string): Promise<LoginR
       input: { email, password }
     });
 
-    console.log('Respuesta del login desde aithApi.ts:', response);
+    //console.log('Respuesta del login desde aithApi.ts:', response);
     
     if (response.loginUser?.token) {
       tokenService.setToken(response.loginUser.token);
@@ -154,11 +154,11 @@ export async function loginUser(email: string, password: string): Promise<LoginR
 
 export async function registerUser(email: string, password: string, name: string, role: string): Promise<RegisterResponse> {
   try {
-    console.log('Iniciando registro con:', { email, name, role });
+    //console.log('Iniciando registro con:', { email, name, role });
     const result = await client.request<GraphQLResponse<RegisterResponse>>(REGISTER_USER, {
       input: { email, password, name, role }
     });
-    console.log('Respuesta del registro:', result);
+    //console.log('Respuesta del registro:', result);
     return result.registerUser;
   } catch (error) {
     console.error('Error en registerUser:', error);
@@ -167,7 +167,7 @@ export async function registerUser(email: string, password: string, name: string
 }
 
 export async function getAuthStatus(): Promise<AuthStatus> {
-  console.log('Verificando estado de autenticación...');
+  //console.log('Verificando estado de autenticación...');
   try {
     const response = await client.request<GraphQLResponse<AuthStatus>>(`
       query {
@@ -182,7 +182,7 @@ export async function getAuthStatus(): Promise<AuthStatus> {
         }
       }
     `);
-    console.log('Respuesta de auth status:', response);
+    //console.log('Respuesta de auth status:', response);
     return response.authStatus;
   } catch (error) {
     console.error('Error al verificar estado de autenticación:', error);
@@ -195,9 +195,9 @@ export async function getAuthStatus(): Promise<AuthStatus> {
 
 export async function getGoogleLoginUrl(): Promise<GoogleLoginResponse> {
   try {
-    console.log('Obteniendo URL de login con Google...');
+    //console.log('Obteniendo URL de login con Google...');
     const result = await client.request<GraphQLResponse<GoogleLoginResponse>>(GET_GOOGLE_LOGIN_URL);
-    console.log('Respuesta de Google URL:', result);
+    //console.log('Respuesta de Google URL:', result);
     return result.getGoogleLoginUrl;
   } catch (error) {
     console.error('Error en getGoogleLoginUrl:', error);

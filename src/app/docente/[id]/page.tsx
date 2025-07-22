@@ -97,7 +97,7 @@ export default function DocenteDetallePage() {
 
   async function refrescarNotas(gradoId: string, asignaturaId: string, periodo: string) {
     const periodoCompleto = periodo;
-    console.log(`Consultando calificaciones con periodo: ${periodoCompleto}`);
+    //console.log(`Consultando calificaciones con periodo: ${periodoCompleto}`);
     
     const res = await getCalificaciones({
       cursoId: String(gradoId),
@@ -105,7 +105,7 @@ export default function DocenteDetallePage() {
       periodo: periodoCompleto,
     });
     const calificaciones = (res as { calificaciones: any[] }).calificaciones || [];
-    console.log(`Calificaciones encontradas: ${calificaciones.length}`);
+    //console.log(`Calificaciones encontradas: ${calificaciones.length}`);
     
     setEstudiantesPorGrado((prev) => {
       const estudiantes = prev[Number(gradoId)] || [];
@@ -121,7 +121,7 @@ export default function DocenteDetallePage() {
 
   async function refrescarCursosYEstudiantes(periodo: string) {
     const periodoCompleto = periodo;
-    console.log(`Refrescando cursos y estudiantes para el periodo: ${periodoCompleto}`);
+    //console.log(`Refrescando cursos y estudiantes para el periodo: ${periodoCompleto}`);
 
     try {
       // Obtener calificaciones para el periodo completo
@@ -154,7 +154,7 @@ export default function DocenteDetallePage() {
       await Promise.all(
         cursosAsignados.map(async (curso: any) => {
           try {
-            console.log("aqui se hace el fetch a getCursoEstudiantes(curso.id); curso.id--> " + curso.id)
+            //console.log("aqui se hace el fetch a getCursoEstudiantes(curso.id); curso.id--> " + curso.id)
             const resEst = await getCursoEstudiantes(curso.id);
             estudiantesPorGradoAsignados[curso.id] = resEst || [];
           } catch (e) {
@@ -364,7 +364,7 @@ export default function DocenteDetallePage() {
                           }
                         } else if (est.nota !== undefined) {
                           // Si NO existe, crea la calificación
-                          console.log(`Registrando calificación - Estudiante: ${est.id}, Periodo Completo: ${periodoCompleto}`);
+                          //console.log(`Registrando calificación - Estudiante: ${est.id}, Periodo Completo: ${periodoCompleto}`);
                           await registrarCalificacion({
                             estudianteId: String(est.id),
                             asignaturaId: String(asignatura.id),

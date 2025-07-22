@@ -13,12 +13,12 @@ export default function AuthCallbackClient() {
     useEffect(() => {
         const handleCallback = async () => {
             try {
-                console.log('AuthCallback: Iniciando manejo de callback');
+                //console.log('AuthCallback: Iniciando manejo de callback');
                 
                 // Primero intentamos obtener el token
                 const token = searchParams.get('token');
                 if (token) {
-                    console.log('AuthCallback: Token recibido del backend');
+                    //console.log('AuthCallback: Token recibido del backend');
                     tokenService.setToken(token);
                     client.setHeader('Authorization', `Bearer ${token}`);
                     router.push('/');
@@ -28,7 +28,7 @@ export default function AuthCallbackClient() {
                 // Si no hay token, verificamos si es el callback de Google
                 const code = searchParams.get('code');
                 if (code) {
-                    console.log('AuthCallback: Código de Google recibido, redirigiendo al backend');
+                    //console.log('AuthCallback: Código de Google recibido, redirigiendo al backend');
                     // Redirigir al backend para procesar el código
                     const backendURL = `http://localhost:8082/api/v1/auth/google/callback?code=${code}`;
                     window.location.href = backendURL;

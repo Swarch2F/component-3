@@ -30,7 +30,7 @@ async function initializeConfig() {
         updateClientConfig(),
         updateAuthClientConfig()
       ]);
-      console.log('Configuration initialized successfully');
+      // //console.log('Configuration initialized successfully');
     } catch (error) {
       console.error('Error initializing configuration:', error);
     }
